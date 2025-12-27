@@ -1,0 +1,388 @@
+import React, { useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { CheckSquare, Plus, Edit2, Trash2, CheckCircle, Link as LinkIcon, FileText, Sparkles } from 'lucide-react';
+import { BUDGET_CATEGORIES } from '../data/budgetConstants';
+import { SearchableSelect } from './SearchableSelect';
+import { ALL_CURRENCIES } from '../data/currencies';
+import { SectionTitle, Modal, Button, ConfirmModal } from './CommonUI';
+import { setPreTripTasks, updateTripDetails, generateTrip } from '../store/tripSlice';
+import { LOCALES } from '../i18n/locales';
+import { getBudgetCategory } from '../utils/helpers';
+
+export const PreTripTasks = () => {
+    const dispatch = useDispatch();
+    const { preTripTasks, tripDetails, language, exchangeRates = {}, loading } = useSelector(state => state.trip);
+
+    // Filtered list of currencies allowed (Home + Added)
+    const activeCurrencies = ALL_CURRENCIES.filter(c =>
+        c.code === tripDetails.homeCurrency ||
+        Object.keys(exchangeRates).includes(c.code)
+    );
+
+    const t = LOCALES[language || 'en'];
+
+    const [modal, setModal] = useState({ isOpen: false, type: 'add', taskId: null });
+    const [formData, setFormData] = useState({
+        text: '',
+        dueDate: '',
+        cost: '',
+        currency: tripDetails.lastUsedCurrency || tripDetails.homeCurrency || 'USD',
+        category: 'Documents',
+        isPaid: false,
+        timeToComplete: '',
+        notes: ''
+    });
+    const [localPrompt, setLocalPrompt] = useState('');
+    const [aiMode, setAiMode] = useState('add');
+    const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, id: null });
+
+    const openModal = (type, task = null) => {
+        if (type === 'edit' && task) {
+            setFormData({
+                text: task.text,
+                dueDate: task.dueDate || '',
+                cost: task.cost || '',
+                currency: task.currency || tripDetails.homeCurrency,
+                category: task.category || 'Documents',
+                isPaid: task.isPaid || false,
+                timeToComplete: task.timeToComplete || '',
+                notes: task.notes || ''
+            });
+            setModal({ isOpen: true, type: 'edit', taskId: task.id });
+        } else {
+            setFormData({
+                text: '',
+                dueDate: '',
+                cost: '',
+                currency: tripDetails.lastUsedCurrency || tripDetails.homeCurrency || 'USD',
+                category: 'Documents',
+                isPaid: false,
+                timeToComplete: '',
+                notes: ''
+            });
+            setModal({ isOpen: true, type: 'add', taskId: null });
+        }
+    };
+
+    const handleModalSubmit = (e) => {
+        e.preventDefault();
+        if (!formData.text.trim()) return;
+
+        const costValue = parseFloat(formData.cost) || 0;
+
+        if (modal.type === 'add') {
+            const newTask = {
+                id: Date.now(),
+                text: formData.text,
+                dueDate: formData.dueDate,
+                done: false,
+                attachments: [],
+                cost: costValue,
+                currency: formData.currency,
+                category: getBudgetCategory(null, formData.category),
+                isPaid: formData.isPaid,
+                timeToComplete: formData.timeToComplete,
+                notes: formData.notes
+            };
+            dispatch(setPreTripTasks([...preTripTasks, newTask]));
+        } else {
+            dispatch(setPreTripTasks(preTripTasks.map(t =>
+                t.id === modal.taskId
+                    ? { ...t, text: formData.text, dueDate: formData.dueDate, cost: costValue, currency: formData.currency, category: getBudgetCategory(null, formData.category), isPaid: formData.isPaid, timeToComplete: formData.timeToComplete, notes: formData.notes }
+                    : t
+            )));
+        }
+        setModal({ isOpen: false, type: 'add', taskId: null });
+    };
+
+    const toggleTask = (taskId) => {
+        dispatch(setPreTripTasks(preTripTasks.map(t => t.id === taskId ? { ...t, done: !t.done } : t)));
+    };
+
+    const deleteTask = (id) => {
+        setConfirmDelete({ isOpen: true, id });
+    };
+
+    const confirmDeleteTask = () => {
+        if (confirmDelete.id === 'ALL') {
+            dispatch(setPreTripTasks([]));
+        } else if (confirmDelete.id) {
+            dispatch(setPreTripTasks(preTripTasks.filter(t => t.id !== confirmDelete.id)));
+        }
+        setConfirmDelete({ isOpen: false, id: null });
+    };
+
+    return (
+        <div className="animate-fadeIn w-full">
+            <div className="flex justify-between items-center mb-6">
+                <SectionTitle
+                    icon={CheckSquare}
+                    title={t.preTrip}
+                    subtitle={t.preTripSubtitle}
+                />
+                <div className="flex flex-col items-end">
+                    <div className="flex items-center bg-white border border-slate-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all overflow-hidden">
+                        <div className="flex items-center px-3 border-r border-slate-100 bg-slate-50/50">
+                            <Sparkles size={14} className="text-indigo-500" />
+                        </div>
+                        <select
+                            value={aiMode}
+                            onChange={(e) => setAiMode(e.target.value)}
+                            className="bg-transparent px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 outline-none border-r border-slate-100 h-full cursor-pointer hover:bg-slate-50 transition-colors"
+                        >
+                            <option value="add">{t.addNew}</option>
+                            <option value="update">{t.updateExisting}</option>
+                            <option value="fill">{t.fillGaps}</option>
+                            <option value="dedupe">{t.removeDuplicates}</option>
+                        </select>
+                        <input
+                            type="text"
+                            value={localPrompt}
+                            onChange={(e) => setLocalPrompt(e.target.value)}
+                            placeholder="AI Suggestions..."
+                            className="bg-transparent px-3 py-2 text-xs outline-none w-48 text-slate-700 placeholder:text-slate-400 font-medium"
+                        />
+                        <button
+                            onClick={() => dispatch(generateTrip({ targetArea: 'tasks', customPrompt: localPrompt, aiMode }))}
+                            disabled={loading}
+                            className={`px-4 py-2 text-xs font-bold text-white transition-all flex items-center gap-2 ${loading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95'}`}
+                        >
+                            {loading ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
+                            Generate
+                        </button>
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                        <Button onClick={() => openModal('add')} icon={Plus} className="h-9 text-xs px-4" variant="secondary">{t.addItem}</Button>
+                        {preTripTasks.length > 0 && (
+                            <Button
+                                onClick={() => setConfirmDelete({ isOpen: true, id: 'ALL' })}
+                                className="h-9 text-xs px-4 text-red-600 hover:bg-red-50 border-red-200"
+                                variant="secondary"
+                            >
+                                <Trash2 size={14} className="mr-1" /> {t.clearList}
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            <div className="space-y-4">
+                {preTripTasks.length === 0 && (
+                    <div className="p-12 text-center text-slate-400 italic bg-white rounded-xl border border-dashed border-slate-200">
+                        No tasks yet. Add one to get started!
+                    </div>
+                )}
+                {[...preTripTasks].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1)).map(task => (
+                    <div key={task.id} className={`group bg-white rounded-xl p-4 border transition-all duration-200 ${task.done ? 'border-slate-100 opacity-75' : 'border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-100'}`}>
+                        <div className="flex items-start gap-4">
+                            <div className="flex items-center h-6">
+                                <input
+                                    type="checkbox"
+                                    checked={task.done}
+                                    onChange={() => toggleTask(task.id)}
+                                    className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer transition-colors"
+                                />
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                                <div className="flex justify-between items-start gap-2">
+                                    <h4 className={`text-base font-semibold leading-tight ${task.done ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                                        {task.text}
+                                    </h4>
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                        <button
+                                            onClick={() => openModal('edit', task)}
+                                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                            title={t.editEvent}
+                                        >
+                                            <Edit2 size={16} />
+                                        </button>
+                                        <button
+                                            onClick={() => deleteTask(task.id)}
+                                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                            title={t.confirmDelete}
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="mt-3 flex flex-wrap items-center gap-2">
+                                    {/* Category Badge */}
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
+                                        {task.category || 'General'}
+                                    </span>
+
+                                    {/* Deadline Badge */}
+                                    {task.dueDate && (
+                                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${new Date(task.dueDate) < new Date() && !task.done
+                                            ? 'bg-red-50 text-red-600 border-red-100'
+                                            : 'bg-indigo-50 text-indigo-600 border-indigo-100'
+                                            }`}>
+                                            <FileText size={10} />
+                                            {new Date(task.dueDate).toLocaleDateString()}
+                                        </span>
+                                    )}
+
+                                    {/* Time to Complete Badge */}
+                                    {task.timeToComplete && (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-600 border border-amber-100">
+                                            ⏱ {task.timeToComplete}
+                                        </span>
+                                    )}
+
+                                    {task.cost > 0 && (
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${task.isPaid ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-600'}`}>
+                                            {task.currency} {task.cost.toLocaleString()} {task.isPaid ? '(Paid)' : '(Est)'}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {task.notes && (
+                                    <p className="mt-3 text-sm text-slate-600 bg-slate-50 p-3 rounded-lg italic border-l-2 border-slate-200 whitespace-pre-wrap">
+                                        {task.notes}
+                                    </p>
+                                )}
+                                {task.cost > 0 && (
+                                    <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-50">
+                                        <button
+                                            onClick={() => {
+                                                dispatch(setPreTripTasks(preTripTasks.map(t =>
+                                                    t.id === task.id ? { ...t, isPaid: !t.isPaid } : t
+                                                )));
+                                            }}
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${task.isPaid
+                                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                                : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                                                }`}
+                                        >
+                                            <CheckCircle size={14} className={task.isPaid ? 'text-emerald-500' : 'text-slate-300'} />
+                                            {task.isPaid ? t.paid : t.markPaid}
+                                        </button>
+                                    </div>)}
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <Modal
+                isOpen={modal.isOpen}
+                onClose={() => setModal({ ...modal, isOpen: false })}
+                title={modal.type === 'add' ? t.addItem : t.editEvent} // Using editEvent for simplicity or add a specific key
+            >
+                <form onSubmit={handleModalSubmit} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.title}</label>
+                            <input
+                                autoFocus
+                                className="w-full p-2 bg-slate-50 border border-slate-200 border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                placeholder={t.taskPlaceholder}
+                                value={formData.text}
+                                onChange={(e) => setFormData({ ...formData, text: e.target.value })}
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.deadline}</label>
+                            <input
+                                type="date"
+                                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
+                                value={formData.dueDate}
+                                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.category}</label>
+                            <select
+                                value={formData.category}
+                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
+                            >
+                                {BUDGET_CATEGORIES.map(c => (
+                                    <option key={c} value={c}>
+                                        {t[`cat_${c.toLowerCase().replace(/ & /g, '_').replace(/ /g, '_')}`] || c}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.timeToComplete}</label>
+                            <input
+                                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                placeholder={t.timePlaceholder}
+                                value={formData.timeToComplete}
+                                onChange={(e) => setFormData({ ...formData, timeToComplete: e.target.value })}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100">
+                        <label className="block text-sm font-bold text-slate-700 mb-2">{t.cost}</label>
+                        <div className="flex gap-2 items-center">
+                            <input
+                                type="number"
+                                className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm min-w-0 font-bold"
+                                placeholder="0"
+                                value={formData.cost}
+                                onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
+                            />
+                            <div className="w-28 shrink-0">
+                                <select
+                                    value={formData.currency}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setFormData({ ...formData, currency: val });
+                                        dispatch(updateTripDetails({ lastUsedCurrency: val }));
+                                    }}
+                                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                                >
+                                    {activeCurrencies.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                                </select>
+                            </div>
+                            <div className="flex items-center bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 shrink-0 h-[38px]">
+                                <input
+                                    type="checkbox"
+                                    id="modal-paid"
+                                    checked={formData.isPaid}
+                                    onChange={(e) => setFormData({ ...formData, isPaid: e.target.checked })}
+                                    className="w-4 h-4 rounded text-indigo-600 mr-2"
+                                />
+                                <label htmlFor="modal-paid" className="text-[10px] font-bold text-slate-500 uppercase cursor-pointer select-none">
+                                    {t.paid}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.notes}</label>
+                        <textarea
+                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm h-24 focus:ring-2 focus:ring-indigo-500 outline-none"
+                            placeholder="Extra details, links, etc."
+                            value={formData.notes}
+                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                        />
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                        <Button variant="secondary" onClick={() => setModal({ ...modal, isOpen: false })} className="flex-1">{t.cancel}</Button>
+                        <Button type="submit" className="flex-1" icon={modal.type === 'add' ? Plus : CheckCircle}>{modal.type === 'add' ? t.addItem : t.saveChanges}</Button>
+                    </div>
+                </form>
+            </Modal>
+
+            <ConfirmModal
+                isOpen={confirmDelete.isOpen}
+                onClose={() => setConfirmDelete({ isOpen: false, id: null })}
+                onConfirm={confirmDeleteTask}
+                title={confirmDelete.id === 'ALL' ? t.clearList : t.confirmDelete}
+                message={confirmDelete.id === 'ALL' ? t.confirmClear : "Are you sure you want to delete this task? This action cannot be undone."}
+            />
+        </div >
+    );
+};
