@@ -154,9 +154,9 @@ export const Budget = () => {
             />
 
             <div className="mb-6 flex flex-wrap gap-4 items-center bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                <div className="flex items-center gap-2 pr-4 border-r border-slate-100">
+                <div className="flex items-center gap-2 pr-4 border-r border-slate-100 w-full sm:w-auto">
                     <span className="text-sm font-bold text-slate-700 whitespace-nowrap">{t.primaryCurrency}:</span>
-                    <div className="w-48">
+                    <div className="flex-1 sm:w-48">
                         <SearchableSelect
                             options={ALL_CURRENCIES}
                             value={tripDetails.homeCurrency}
@@ -170,15 +170,15 @@ export const Budget = () => {
                     </div>
                 </div>
 
-                <div className="flex gap-4 items-center overflow-x-auto py-1 custom-scrollbar">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t.activeRates}:</span>
+                <div className="flex gap-2 sm:gap-4 items-center overflow-x-auto py-1 custom-scrollbar flex-1 min-w-0">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden sm:inline">{t.activeRates}:</span>
                     {Object.entries(exchangeRates || {}).length === 0 && (
                         <span className="text-xs text-slate-400 italic">{t.noRates}</span>
                     )}
                     {Object.entries(exchangeRates || {}).map(([curr, rate]) => (
-                        <div key={curr} className="flex items-center gap-1.5 px-2 py-1 bg-indigo-50 rounded-lg border border-indigo-100">
+                        <div key={curr} className="flex items-center gap-1.5 px-2 py-1 bg-indigo-50 rounded-lg border border-indigo-100 shrink-0">
                             <span className="text-xs font-bold text-indigo-700">{curr}</span>
-                            <span className="text-[10px] text-indigo-400">1 {tripDetails.homeCurrency} =</span>
+                            <span className="text-[10px] text-indigo-400 hidden sm:inline">1 {tripDetails.homeCurrency} =</span>
                             <span className="text-xs font-medium text-slate-700">{rate.toFixed(2)}</span>
                         </div>
                     ))}
@@ -220,8 +220,8 @@ export const Budget = () => {
                                 <span className="uppercase font-bold block mb-1">{t.projectedTotal}</span>
                                 <span className="text-lg font-bold text-slate-200">{formatMoney(totals.projectedTotal, tripDetails.homeCurrency)}</span>
                             </div>
-                            <Button variant="secondary" onClick={() => setIsRatesModalOpen(true)} className="bg-slate-800 border-none text-white hover:bg-slate-700 text-[10px] py-1 px-2" icon={RefreshCw}>
-                                {t.manageRates}
+                            <Button variant="secondary" onClick={() => setIsRatesModalOpen(true)} className="text-[10px] py-1 px-2" icon={Plus}>
+                                Add Currency
                             </Button>
                         </div>
                     </div>

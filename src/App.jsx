@@ -1,8 +1,9 @@
 import React from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
-  Settings, Plane, Home, Wallet, CheckSquare, Calendar, Map as MapIcon, Loader, Globe
+  Settings, Plane, Home, Wallet, CheckSquare, Calendar, Map as MapIcon, Loader, Globe, ArrowDownCircle, RefreshCw
 } from 'lucide-react';
+import { useRegisterSW } from 'virtual:pwa-register/react'
 
 import { COLORS } from './data/uiConstants';
 import {
@@ -18,6 +19,7 @@ import { Budget } from './components/Budget';
 import { Map } from './components/Map';
 import { LOCALES } from './i18n/locales';
 import { Button } from './components/CommonUI';
+import { ReviewModal } from './components/ReviewModal';
 
 function WanderPlanContent() {
   const dispatch = useDispatch();
@@ -27,6 +29,13 @@ function WanderPlanContent() {
   const loading = useSelector(state => state.trip.loading);
   const language = useSelector(state => state.trip.language || 'en');
   const t = LOCALES[language];
+
+  // PWA Update
+  const {
+    needRefresh: [needRefresh, setNeedRefresh],
+    updateServiceWorker,
+  } = useRegisterSW();
+
 
   // Auto-save to localStorage on change (Initial load handled in tripSlice)
 
@@ -110,10 +119,18 @@ function WanderPlanContent() {
     e.target.value = '';
   };
 
+  const navItems = [
+    { id: 'overview', icon: Home, label: t.overview },
+    { id: 'tasks', icon: CheckSquare, label: t.tasks },
+    { id: 'packing', icon: Plane, label: t.packing },
+    { id: 'itinerary', icon: Calendar, label: t.itinerary },
+    { id: 'budget', icon: Wallet, label: t.budget },
+    { id: 'map', icon: MapIcon, label: t.map },
+  ];
 
   return (
     <div className={`h-screen flex flex-col ${COLORS.bg} text-slate-800 font-sans selection:bg-indigo-100 overflow-hidden`}>
-      <header className="shrink-0 h-16 bg-white/80 backdrop-blur-md z-40 border-b border-slate-200">
+      <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 shrink-0 h-16">
         <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Globe className="text-indigo-600" />
@@ -121,20 +138,28 @@ function WanderPlanContent() {
           </div>
 
           <nav className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
-            {['overview', 'tasks', 'packing', 'itinerary', 'budget', 'map'].map((tab) => (
+            {navItems.map((item) => (
               <button
-                key={tab}
-                onClick={() => dispatch(setActiveTab(tab))}
-                className={`px-4 py-1.5 rounded-md text-xs font-bold uppercase tracking-wide transition-all ${activeTab === tab ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-600'
+                key={item.id}
+                onClick={() => dispatch(setActiveTab(item.id))}
+                className={`px-4 py-1.5 rounded-md text-xs font-bold uppercase tracking-wide transition-all ${activeTab === item.id ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-600'
                   }`}
               >
-                {t[tab]}
+                {t[item.id]}
               </button>
             ))}
           </nav>
 
           <div className="flex items-center gap-4">
-            <div className="flex bg-slate-100 rounded-lg p-1">
+            {/* PWA Update Toast (Desktop/Mobile) - minimal indicator or rely on settings? 
+                 Let's add a small indicator if update is ready */}
+            {needRefresh && (
+              <button onClick={() => updateServiceWorker(true)} className="flex items-center gap-1 bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full text-xs font-bold animate-pulse hover:bg-indigo-200">
+                <ArrowDownCircle size={14} /> <span className="hidden sm:inline">Update</span>
+              </button>
+            )}
+
+            <div className="hidden sm:flex bg-slate-100 rounded-lg p-1">
               <button onClick={() => dispatch(setLanguage('en'))} className={`px-2 py-1 text-xs font-bold rounded ${language === 'en' ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}>EN</button>
               <button onClick={() => dispatch(setLanguage('cs'))} className={`px-2 py-1 text-xs font-bold rounded ${language === 'cs' ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}>CS</button>
             </div>
@@ -144,7 +169,8 @@ function WanderPlanContent() {
           </div>
         </div>
       </header>
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6 overflow-auto flex flex-col">
+
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6 overflow-auto flex flex-col pb-24 md:pb-6">
         {activeTab === 'overview' && (
           <Overview
             onSave={handleSaveTrip}
@@ -157,6 +183,24 @@ function WanderPlanContent() {
         {activeTab === 'itinerary' && <Itinerary />}
         {activeTab === 'map' && <Map />}
       </main>
+
+      {/* Review Modal for AI Changes */}
+      <ReviewModal />
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-2 z-50 flex justify-between items-center safe-area-pb">
+        {navItems.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => dispatch(setActiveTab(item.id))}
+            className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${activeTab === item.id ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
+              }`}
+          >
+            <item.icon size={20} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+            <span className="text-[10px] font-medium">{item.label}</span>
+          </button>
+        ))}
+      </nav>
 
       {loading && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm">
@@ -179,7 +223,29 @@ function WanderPlanContent() {
               placeholder="Gemini API Key"
               className="w-full p-2 border rounded-lg mb-4 text-sm"
             />
-            <div className="flex justify-end gap-2">
+
+            <div className="mb-4">
+              <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">Language</h3>
+              <div className="flex gap-2">
+                <button onClick={() => dispatch(setLanguage('en'))} className={`flex-1 py-2 text-sm font-bold rounded-lg border ${language === 'en' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-600'}`}>English</button>
+                <button onClick={() => dispatch(setLanguage('cs'))} className={`flex-1 py-2 text-sm font-bold rounded-lg border ${language === 'cs' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-600'}`}>Čeština</button>
+              </div>
+            </div>
+
+            {/* PWA Manual Update */}
+            {needRefresh && (
+              <div className="mb-4 p-3 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-indigo-800">Update Available</p>
+                  <p className="text-xs text-indigo-600">A new version of the app is ready.</p>
+                </div>
+                <Button onClick={() => updateServiceWorker(true)} icon={RefreshCw} className="py-1 px-3 text-xs">
+                  Update
+                </Button>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 mt-6">
               <Button variant="secondary" onClick={() => dispatch(setShowSettings(false))}>Close</Button>
             </div>
           </div>

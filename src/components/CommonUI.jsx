@@ -1,7 +1,7 @@
 import React from 'react';
 import { COLORS } from '../data/uiConstants';
 
-export const SectionTitle = ({ icon: Icon, title, subtitle }) => (
+export const SectionTitle = ({ icon: Icon, title, subtitle, subtitleClassName = "" }) => (
   <div className="mb-6">
     <div className="flex items-center gap-2 mb-1">
       <div className={`p-2 rounded-lg bg-indigo-50 ${COLORS.accent}`}>
@@ -9,12 +9,17 @@ export const SectionTitle = ({ icon: Icon, title, subtitle }) => (
       </div>
       <h2 className="text-xl font-bold text-slate-800">{title}</h2>
     </div>
-    {subtitle && <p className="text-slate-500 text-sm ml-11">{subtitle}</p>}
+    {subtitle && <p className={`text-slate-500 text-sm ml-11 ${subtitleClassName}`}>{subtitle}</p>}
   </div>
 );
 
-export const Card = ({ children, className = "" }) => (
+export const Card = ({ children, title, className = "" }) => (
   <div className={`bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden ${className}`}>
+    {title && (
+      <div className="border-b border-slate-100 bg-slate-50/50 p-3 font-bold text-slate-700">
+        {title}
+      </div>
+    )}
     {children}
   </div>
 );

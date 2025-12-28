@@ -36,10 +36,10 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
             goalPrompt = `
                 Generate itinerary events for the trip.
                 - MODE: ${aiMode}. ${modeInstructions[aiMode]}
-                - For each event return: "title", "startDate" (YYYY-MM-DD), "startTime" (HH:mm), "endTime" (HH:mm), "type", "estimatedCost", "currency", "location", "endLocation", and "notes".
+                - For each event return: "title", "startDate" (YYYY-MM-DD), "startTime" (HH:mm), "duration" (minutes), "type", "estimatedCost", "currency", "location", "endLocation", "timeZone" (e.g. "Europe/Prague") and "notes".
                 - RETURN ONLY the "newItinerary" field.
             `;
-            responseFormat = `"newItinerary": [{"title": "...", "startDate": "YYYY-MM-DD", "startTime": "HH:mm", "endTime": "HH:mm", "type": "Activity", "estimatedCost": 0, "currency": "CODE", "location": "...", "endLocation": "...", "notes": "..."}]`;
+            responseFormat = `"newItinerary": [{"title": "...", "startDate": "YYYY-MM-DD", "startTime": "HH:mm", "duration": 60, "type": "Activity", "estimatedCost": 0, "currency": "CODE", "location": "...", "endLocation": "...", "timeZone": "...", "notes": "..."}]`;
             break;
         case 'tasks':
             goalPrompt = `

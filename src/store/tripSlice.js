@@ -68,6 +68,7 @@ const getDefaultState = () => ({
     loading: false,
     isInitialized: false,
     customPrompt: '',
+    proposedChanges: null, // Store changes for review { data, targetArea, aiMode }
     tripDetails: {
         destination: '',
         origin: '',
@@ -150,7 +151,6 @@ export const tripSlice = createSlice({
         setPackingList: (state, action) => {
             state.packingList = action.payload;
         },
-        // ... (reducers content)
         loadFullTrip: (state, action) => {
             const data = action.payload;
             if (data.tripDetails) state.tripDetails = data.tripDetails;
@@ -168,6 +168,174 @@ export const tripSlice = createSlice({
         updateExchangeRate: (state, action) => {
             const { currency, rate } = action.payload;
             state.exchangeRates = { ...(state.exchangeRates || {}), [currency]: rate };
+        },
+        discardProposedChanges: (state) => {
+            state.proposedChanges = null;
+        },
+        applyProposedChanges: (state) => {
+            const { data, targetArea, aiMode } = state.proposedChanges || {};
+            if (!data) return;
+
+            // Handle Trip Currency if returned
+            if (data.tripCurrency) {
+                state.tripDetails.tripCurrency = data.tripCurrency;
+            }
+
+            // Merge Pre-Trip Tasks (if area is tasks or all)
+            if (data.newPreTrip) {
+                if (aiMode === 'dedupe') {
+                    // In dedupe mode, AI returns the CLEANED list. We replace the current tasks.
+                    // We try to preserve 'done' status if possible by matching text.
+                    const currentTasksMap = new Map(state.preTripTasks.map(t => [t.text.toLowerCase(), t]));
+
+                    state.preTripTasks = data.newPreTrip.map(t => {
+                        const existing = currentTasksMap.get(t.text.toLowerCase());
+                        return {
+                            id: existing ? existing.id : Date.now() + Math.random(),
+                            text: t.text,
+                            done: existing ? existing.done : false,
+                            attachments: existing ? existing.attachments : [],
+                            cost: t.cost || (existing ? existing.cost : 0),
+                            currency: t.currency || (existing ? existing.currency : state.tripDetails.homeCurrency),
+                            isPaid: existing ? existing.isPaid : false,
+                            category: t.category || (existing ? existing.category : 'Documents'),
+                            isEditing: false,
+                            timeToComplete: t.timeToComplete || (existing ? existing.timeToComplete : ''),
+                            dueDate: t.dueDate || (existing ? existing.dueDate : ''),
+                            notes: t.notes || (existing ? existing.notes : '')
+                        };
+                    });
+                } else {
+                    data.newPreTrip.forEach(t => {
+                        const existingIndex = state.preTripTasks.findIndex(
+                            et => et.text.toLowerCase() === t.text.toLowerCase()
+                        );
+
+                        if (existingIndex > -1) {
+                            // Enrich existing task
+                            const et = state.preTripTasks[existingIndex];
+                            // Strict update only if mode is update or fill
+                            if (aiMode === 'update' || aiMode === 'fill' || !aiMode) {
+                                state.preTripTasks[existingIndex] = {
+                                    ...et,
+                                    cost: t.cost || et.cost,
+                                    currency: t.currency || et.currency,
+                                    category: t.category || et.category,
+                                    timeToComplete: t.timeToComplete || et.timeToComplete,
+                                    dueDate: t.dueDate || et.dueDate,
+                                    notes: t.notes || et.notes
+                                };
+                            }
+                        } else if (aiMode !== 'update') {
+                            // Add new task
+                            state.preTripTasks.push({
+                                id: Date.now() + Math.random(),
+                                text: t.text,
+                                done: false,
+                                attachments: [],
+                                cost: t.cost || 0,
+                                currency: t.currency || state.tripDetails.homeCurrency,
+                                isPaid: false,
+                                category: t.category || 'Documents',
+                                isEditing: false,
+                                timeToComplete: t.timeToComplete || '',
+                                dueDate: t.dueDate || '',
+                                notes: t.notes || ''
+                            });
+                        }
+                    });
+                }
+            }
+
+            // Merge Packing List (if area is packing or all)
+            if (data.newPacking) {
+                if (aiMode === 'dedupe') {
+                    // In dedupe mode for packing, we rebuild the structure based on AI return
+                    // trying to preserve 'done' status.
+                    const currentItemsMap = new Map();
+                    state.packingList.forEach(cat => {
+                        cat.items.forEach(item => currentItemsMap.set(item.text.toLowerCase(), item.done));
+                    });
+
+                    state.packingList = data.newPacking.map(cat => ({
+                        id: Date.now() + Math.random(),
+                        category: cat.category,
+                        items: cat.items.map(itemName => ({
+                            id: Date.now() + Math.random(),
+                            text: itemName,
+                            done: currentItemsMap.get(itemName.toLowerCase()) || false
+                        }))
+                    }));
+                } else {
+                    data.newPacking.forEach(newCat => {
+                        const existingCat = state.packingList.find(c => c.category === newCat.category);
+                        if (existingCat) {
+                            const existingItems = new Set(existingCat.items.map(i => i.text.toLowerCase()));
+                            // Only add new items if mode is NOT 'update'
+                            if (aiMode !== 'update') {
+                                const itemsToAdd = newCat.items
+                                    .filter(i => !existingItems.has(i.toLowerCase()))
+                                    .map(i => ({ id: Date.now() + Math.random(), text: i, done: false }));
+                                existingCat.items.push(...itemsToAdd);
+                            }
+                        } else if (aiMode !== 'update') {
+                            state.packingList.push({
+                                id: Date.now() + Math.random(),
+                                category: newCat.category,
+                                items: newCat.items.map(i => ({ id: Date.now() + Math.random(), text: i, done: false }))
+                            });
+                        }
+                    });
+                }
+            }
+
+            // Merge Itinerary (if area is itinerary or all)
+            if (data.newItinerary) {
+                data.newItinerary.forEach(e => {
+                    // Look for existing event to enrich
+                    const existingEventIndex = state.itinerary.findIndex(
+                        ei => ei.title.toLowerCase() === e.title.toLowerCase() && ei.startDate === e.startDate
+                    );
+
+                    if (existingEventIndex > -1 && (aiMode === 'update' || aiMode === 'fill')) {
+                        const ei = state.itinerary[existingEventIndex];
+                        state.itinerary[existingEventIndex] = {
+                            ...ei,
+                            cost: ei.cost || e.estimatedCost || e.cost || 0,
+                            currency: ei.currency || e.currency || state.tripDetails.tripCurrency,
+                            notes: ei.notes || e.notes || '',
+                            category: ei.category || e.category || 'Activities',
+                            // Replaced endTime with duration
+                            duration: ei.duration || e.duration || 60,
+                            timeZone: ei.timeZone || e.timeZone || '',
+                            location: ei.location || e.location || '',
+                            endLocation: ei.endLocation || e.endLocation || ''
+                        };
+                    } else if (aiMode !== 'update') {
+                        // Only add new if not strictly updating
+                        state.itinerary.push({
+                            ...e,
+                            id: Date.now() + Math.random(),
+                            image: null,
+                            cost: e.estimatedCost || e.cost || 0,
+                            currency: e.currency || state.tripDetails.tripCurrency,
+                            isPaid: false,
+                            isEditing: false,
+                            category: e.category || 'Activities',
+                            duration: e.duration || 60, // Default duration if missing
+                            timeZone: e.timeZone || ''
+                        });
+                    }
+                });
+                state.itinerary.sort((a, b) => new Date(a.startDate + ' ' + (a.startTime || '00:00')) - new Date(b.startDate + ' ' + (b.startTime || '00:00')));
+            }
+
+            // Phrasebook (if area is phrasebook or all)
+            if (data.phrasebook) {
+                state.phrasebook = data.phrasebook;
+            }
+
+            state.proposedChanges = null;
         }
     },
     extraReducers: (builder) => {
@@ -177,162 +345,8 @@ export const tripSlice = createSlice({
             })
             .addCase(generateTrip.fulfilled, (state, action) => {
                 state.loading = false;
-                const { data, targetArea, aiMode } = action.payload;
-
-                // Handle Trip Currency if returned
-                if (data.tripCurrency) {
-                    state.tripDetails.tripCurrency = data.tripCurrency;
-                }
-
-                // Merge Pre-Trip Tasks (if area is tasks or all)
-                if (data.newPreTrip) {
-                    if (aiMode === 'dedupe') {
-                        // In dedupe mode, AI returns the CLEANED list. We replace the current tasks.
-                        // We try to preserve 'done' status if possible by matching text.
-                        const currentTasksMap = new Map(state.preTripTasks.map(t => [t.text.toLowerCase(), t]));
-
-                        state.preTripTasks = data.newPreTrip.map(t => {
-                            const existing = currentTasksMap.get(t.text.toLowerCase());
-                            return {
-                                id: existing ? existing.id : Date.now() + Math.random(),
-                                text: t.text,
-                                done: existing ? existing.done : false,
-                                attachments: existing ? existing.attachments : [],
-                                cost: t.cost || (existing ? existing.cost : 0),
-                                currency: t.currency || (existing ? existing.currency : state.tripDetails.homeCurrency),
-                                isPaid: existing ? existing.isPaid : false,
-                                category: t.category || (existing ? existing.category : 'Documents'),
-                                isEditing: false,
-                                timeToComplete: t.timeToComplete || (existing ? existing.timeToComplete : ''),
-                                dueDate: t.dueDate || (existing ? existing.dueDate : ''),
-                                notes: t.notes || (existing ? existing.notes : '')
-                            };
-                        });
-                    } else {
-                        data.newPreTrip.forEach(t => {
-                            const existingIndex = state.preTripTasks.findIndex(
-                                et => et.text.toLowerCase() === t.text.toLowerCase()
-                            );
-
-                            if (existingIndex > -1) {
-                                // Enrich existing task
-                                const et = state.preTripTasks[existingIndex];
-                                // Strict update only if mode is update or fill
-                                if (aiMode === 'update' || aiMode === 'fill' || !aiMode) {
-                                    state.preTripTasks[existingIndex] = {
-                                        ...et,
-                                        cost: t.cost || et.cost,
-                                        currency: t.currency || et.currency,
-                                        category: t.category || et.category,
-                                        timeToComplete: t.timeToComplete || et.timeToComplete,
-                                        dueDate: t.dueDate || et.dueDate,
-                                        notes: t.notes || et.notes
-                                    };
-                                }
-                            } else if (aiMode !== 'update') {
-                                // Add new task
-                                state.preTripTasks.push({
-                                    id: Date.now() + Math.random(),
-                                    text: t.text,
-                                    done: false,
-                                    attachments: [],
-                                    cost: t.cost || 0,
-                                    currency: t.currency || state.tripDetails.homeCurrency,
-                                    isPaid: false,
-                                    category: t.category || 'Documents',
-                                    isEditing: false,
-                                    timeToComplete: t.timeToComplete || '',
-                                    dueDate: t.dueDate || '',
-                                    notes: t.notes || ''
-                                });
-                            }
-                        });
-                    }
-                }
-
-                // Merge Packing List (if area is packing or all)
-                if (data.newPacking) {
-                    if (aiMode === 'dedupe') {
-                        // In dedupe mode for packing, we rebuild the structure based on AI return
-                        // trying to preserve 'done' status.
-                        const currentItemsMap = new Map();
-                        state.packingList.forEach(cat => {
-                            cat.items.forEach(item => currentItemsMap.set(item.text.toLowerCase(), item.done));
-                        });
-
-                        state.packingList = data.newPacking.map(cat => ({
-                            id: Date.now() + Math.random(),
-                            category: cat.category,
-                            items: cat.items.map(itemName => ({
-                                id: Date.now() + Math.random(),
-                                text: itemName,
-                                done: currentItemsMap.get(itemName.toLowerCase()) || false
-                            }))
-                        }));
-                    } else {
-                        data.newPacking.forEach(newCat => {
-                            const existingCat = state.packingList.find(c => c.category === newCat.category);
-                            if (existingCat) {
-                                const existingItems = new Set(existingCat.items.map(i => i.text.toLowerCase()));
-                                // Only add new items if mode is NOT 'update'
-                                if (aiMode !== 'update') {
-                                    const itemsToAdd = newCat.items
-                                        .filter(i => !existingItems.has(i.toLowerCase()))
-                                        .map(i => ({ id: Date.now() + Math.random(), text: i, done: false }));
-                                    existingCat.items.push(...itemsToAdd);
-                                }
-                            } else if (aiMode !== 'update') {
-                                state.packingList.push({
-                                    id: Date.now() + Math.random(),
-                                    category: newCat.category,
-                                    items: newCat.items.map(i => ({ id: Date.now() + Math.random(), text: i, done: false }))
-                                });
-                            }
-                        });
-                    }
-                }
-
-                // Merge Itinerary (if area is itinerary or all)
-                if (data.newItinerary) {
-                    data.newItinerary.forEach(e => {
-                        // Look for existing event to enrich
-                        const existingEventIndex = state.itinerary.findIndex(
-                            ei => ei.title.toLowerCase() === e.title.toLowerCase() && ei.startDate === e.startDate
-                        );
-
-                        if (existingEventIndex > -1 && (aiMode === 'update' || aiMode === 'fill')) {
-                            const ei = state.itinerary[existingEventIndex];
-                            state.itinerary[existingEventIndex] = {
-                                ...ei,
-                                cost: ei.cost || e.estimatedCost || e.cost || 0,
-                                currency: ei.currency || e.currency || state.tripDetails.tripCurrency,
-                                notes: ei.notes || e.notes || '',
-                                category: ei.category || e.category || 'Activities',
-                                endTime: ei.endTime || e.endTime || '',
-                                location: ei.location || e.location || '',
-                                endLocation: ei.endLocation || e.endLocation || ''
-                            };
-                        } else if (aiMode !== 'update') {
-                            // Only add new if not strictly updating
-                            state.itinerary.push({
-                                ...e,
-                                id: Date.now() + Math.random(),
-                                image: null,
-                                cost: e.estimatedCost || e.cost || 0,
-                                currency: e.currency || state.tripDetails.tripCurrency,
-                                isPaid: false,
-                                isEditing: false,
-                                category: e.category || 'Activities'
-                            });
-                        }
-                    });
-                    state.itinerary.sort((a, b) => new Date(a.startDate + ' ' + (a.startTime || '00:00')) - new Date(b.startDate + ' ' + (b.startTime || '00:00')));
-                }
-
-                // Phrasebook (if area is phrasebook or all)
-                if (data.phrasebook) {
-                    state.phrasebook = data.phrasebook;
-                }
+                // Defer application - store changes for review
+                state.proposedChanges = action.payload;
             })
             .addCase(generateTrip.rejected, (state, action) => {
                 state.loading = false;
@@ -380,7 +394,8 @@ export const {
     setActiveTab, setShowSettings, setApiKey, setLoading,
     setCustomPrompt, updateTripDetails, setPreTripTasks,
     setItinerary, setExpenses, setPackingList, setPhrasebook,
-    loadFullTrip, setLanguage, setExchangeRates, updateExchangeRate
+    loadFullTrip, setLanguage, setExchangeRates, updateExchangeRate,
+    applyProposedChanges, discardProposedChanges
 } = tripSlice.actions;
 
 export default tripSlice.reducer;

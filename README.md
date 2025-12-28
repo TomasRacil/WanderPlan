@@ -15,20 +15,23 @@
     *   **[NEW]** Multi-currency support: Add expenses in any currency (EUR, CZK, JPY, etc.).
     *   **[NEW]** Trip Reporting Currency: Change the primary currency used for totals and conversions.
 *   **Itinerary Management**:
-    *   Add events (Flights, Activities, Hotels) with date, time, and location.
+    *   Add events (Flights, Activities, Hotels) with date, duration, and flexible timezones.
+    *   **[NEW]** **Duration-based Events**: Specify duration in hours/minutes; end times are calculated automatically.
+    *   **[NEW]** **Timezone Support**: Set both start and destination timezones for travel events (flights, trains).
+    *   **[NEW]** **Anchored Sticky Headers**: Day headers stay perfectly docked under the navigation bar as you scroll.
     *   **[NEW]** Support for **Overnight Activities** (Start Date != End Date).
     *   **[NEW]** Time range support (Start Time - End Time) with validation.
     *   Automatic sorting of events by date and time in a beautiful timeline view.
     *   Google Maps route link generation.
 *   **AI Integration 🤖**:
     *   **Specialized Content Generation**: Granular generation for Itinerary gaps, Pre-trip tasks, Packing List, and Phrasebook.
+    *   **[NEW] AI Change Review System**: Preview, accept, or reject AI-generated suggestions before they are applied. 
     *   **[NEW] AI Modes**: Choose between "Add New", "Update Existing", "Fill Gaps", or "Remove Duplicates" for precise control.
-    *   **Localized Content**: Generates suggestions in English (EN) or Czech (CS).
-    *   **Context Aware**: Analyzes existing trip data (dates, style, current items) to provide relevant suggestions and avoid duplication.
+    *   **Context Aware**: Analyzes existing trip data (dates, style, current items) to provide relevant suggestions.
 *   **Smart Checklists**:
     *   **Pre-Trip Tasks**: Manage visas, vaccinations, and documents.
     *   **Packing List**: Categorized packing essentials.
-    *   **[NEW] List Management**: Auto-sort completed items to bottom, "Clear List" functionality, and AI deduplication.
+        *   **[NEW] List Management**: Auto-sort completed items to bottom, "Clear List" functionality, and AI deduplication.
     *   Support for attachments (links/notes) on tasks.
 *   **Data Persistence**:
     *   **Save/Load**: Export your entire trip plan to a JSON file or **[NEW] ZIP Archive** (including attachments) and load it back anytime.
@@ -44,20 +47,24 @@
     *   Language switcher in the header.
 
 *   **Interactive Map 🗺️**:
+    *   **[NEW] Date Navigation**: Filter markers by specific days using `<` and `>` controls or view the "Whole Trip".
     *   Visualize your itinerary with an interactive map (Leaflet) with auto-coordinates from AI.
+*   **PWA Support 📲**:
+    *   **[NEW] Manual Updates**: A notification and "Update" button in settings appear when a new version is available.
+    *   Installable as a desktop or mobile application for offline access.
 *   **Enhanced UI/UX 🎨**:
-    *   Modern Modal interface, improved DateTime pickers, and full localization.
+    *   **[NEW] Mobile-First Navigation**: Dedicated bottom navigation bar for mobile users.
+    *   **[NEW] Optimized Headers**: Clean, 3-row responsive headers for all list views.
+    *   Modern Modal interface and improved DateTime pickers.
     *   **[NEW] Enhanced Overview**: Tips rendered with markdown, direct task completion from dashboard, and improved "Next Focus" logic.
     *   Task Time Estimates for better pre-trip planning.
 
 ### 🚧 Future Roadmap
-*   **[x] File Attachments**: Upload and store PDFs, JPGs (tickets, reservations) directly in the app.
-*   **[x] Quick Preview Dashboard**: "At a glance" view of upcoming activities and unresolved tasks.
-*   **[x] Task Time Estimates**: Add "Time to Complete" field for To-Do tasks to better plan pre-trip prep.
-*   **[ ] Calendar Export**: Export itinerary to **.ics** format for Google Calendar / Outlook integration.
-*   **[x] PWA Support**: Convert to Progressive Web App for offline access and installation.
-*   **[ ] Multi-Trip Management**: Allow users to create, save, and switch between multiple distinct trips locally.
-*   **[x] Interactive Map**: Full Leaflet/Mapbox integration to visualize itinerary items on a map.
+*   **[x] AI Review System**: Allow users to preview and vet AI suggestions.
+*   **[x] PWA Support**: Convert to Progressive Web App with update controls.
+*   **[x] Interactive Map**: Full Leaflet integration with date-based filtering.
+*   **[ ] Calendar Export**: Export itinerary to **.ics** format for Google Calendar.
+*   **[ ] Multi-Trip Management**: Allow users to create, save, and switch between multiple trips locally.
 *   **[ ] Cloud Sync**: User authentication and database storage for accessing trips across devices.
 *   **[ ] Collaborative Editing**: Real-time multiplayer editing for group travel planning.
 *   **[ ] Mobile App**: React Native mobile application for native experience.

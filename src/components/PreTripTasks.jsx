@@ -124,21 +124,22 @@ export const PreTripTasks = () => {
 
     return (
         <div className="animate-fadeIn w-full">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
                 <SectionTitle
                     icon={CheckSquare}
                     title={t.preTrip}
                     subtitle={t.preTripSubtitle}
+                    subtitleClassName="hidden md:block"
                 />
-                <div className="flex flex-col items-end">
-                    <div className="flex items-center bg-white border border-slate-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all overflow-hidden">
-                        <div className="flex items-center px-3 border-r border-slate-100 bg-slate-50/50">
+                <div className="flex flex-col items-stretch md:items-end gap-3 w-full md:w-auto">
+                    <div className="grid grid-cols-[auto_1fr_auto] grid-rows-2 md:flex md:flex-row items-stretch md:items-center bg-white border border-slate-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all overflow-hidden w-full">
+                        <div className="row-start-1 col-start-1 flex items-center px-3 py-2 border-r border-b md:border-b-0 border-slate-100 bg-slate-50/50">
                             <Sparkles size={14} className="text-indigo-500" />
                         </div>
                         <select
                             value={aiMode}
                             onChange={(e) => setAiMode(e.target.value)}
-                            className="bg-transparent px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 outline-none border-r border-slate-100 h-full cursor-pointer hover:bg-slate-50 transition-colors"
+                            className="row-start-1 col-start-2 bg-transparent px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 outline-none border-b md:border-b-0 border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors"
                         >
                             <option value="add">{t.addNew}</option>
                             <option value="update">{t.updateExisting}</option>
@@ -150,23 +151,22 @@ export const PreTripTasks = () => {
                             value={localPrompt}
                             onChange={(e) => setLocalPrompt(e.target.value)}
                             placeholder="AI Suggestions..."
-                            className="bg-transparent px-3 py-2 text-xs outline-none w-48 text-slate-700 placeholder:text-slate-400 font-medium"
+                            className="row-start-2 col-start-1 col-span-2 bg-transparent px-3 py-2 text-xs outline-none flex-1 min-w-[150px] text-slate-700 placeholder:text-slate-400 font-medium border-r md:border-r-0 border-slate-100"
                         />
                         <button
                             onClick={() => dispatch(generateTrip({ targetArea: 'tasks', customPrompt: localPrompt, aiMode }))}
                             disabled={loading}
-                            className={`px-4 py-2 text-xs font-bold text-white transition-all flex items-center gap-2 ${loading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95'}`}
+                            className={`row-start-1 row-span-2 col-start-3 px-4 py-2 text-xs font-bold text-white transition-all flex items-center justify-center gap-2 ${loading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95'}`}
                         >
-                            {loading ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
-                            Generate
+                            <span className={loading ? "" : "md:inline"}>{loading ? "" : "Generate"}</span>
                         </button>
                     </div>
-                    <div className="flex gap-2 mt-2">
-                        <Button onClick={() => openModal('add')} icon={Plus} className="h-9 text-xs px-4" variant="secondary">{t.addItem}</Button>
+                    <div className="flex gap-2">
+                        <Button onClick={() => openModal('add')} icon={Plus} className="flex-1 md:flex-initial h-9 text-xs px-4" variant="secondary">{t.addItem}</Button>
                         {preTripTasks.length > 0 && (
                             <Button
                                 onClick={() => setConfirmDelete({ isOpen: true, id: 'ALL' })}
-                                className="h-9 text-xs px-4 text-red-600 hover:bg-red-50 border-red-200"
+                                className="flex-1 md:flex-initial h-9 text-xs px-4 text-red-600 hover:bg-red-50 border-red-200"
                                 variant="secondary"
                             >
                                 <Trash2 size={14} className="mr-1" /> {t.clearList}
@@ -199,7 +199,7 @@ export const PreTripTasks = () => {
                                     <h4 className={`text-base font-semibold leading-tight ${task.done ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
                                         {task.text}
                                     </h4>
-                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                    <div className="flex items-center gap-1 shrink-0">
                                         <button
                                             onClick={() => openModal('edit', task)}
                                             className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"

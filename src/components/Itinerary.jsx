@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Calendar, MapPin, Map as MapIcon, Edit2, Save as SaveIcon, Trash2, CheckCircle, Plus, Sparkles, Paperclip, Link as LinkIcon } from 'lucide-react';
+import { Calendar, MapPin, Map as MapIcon, Edit2, Save as SaveIcon, Trash2, CheckCircle, Plus, Sparkles, Paperclip, Link as LinkIcon, Clock, Globe } from 'lucide-react';
 import { BUDGET_CATEGORIES } from '../data/budgetConstants';
 import { EVENT_TYPES, TYPE_TO_CATEGORY } from '../data/eventConstants';
 import { SectionTitle, Card, Button, Modal, ConfirmModal } from './CommonUI';
@@ -12,8 +12,6 @@ import { LOCALES } from '../i18n/locales';
 import { LocationAutocomplete } from './LocationAutocomplete';
 import { AttachmentManager } from './AttachmentManager';
 import { FilePreviewModal } from './FilePreviewModal';
-
-// ... (existing imports)
 
 // Infer category from type
 const getCategory = (type) => {
@@ -35,16 +33,51 @@ export const Itinerary = () => {
 
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [aiMode, setAiMode] = useState('add');
-    const [editMode, setEditMode] = useState(false); // New state to track if we are adding or editing
+    const [editMode, setEditMode] = useState(false);
     const [formError, setFormError] = useState('');
     const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, id: null });
     const [previewFile, setPreviewFile] = useState(null);
     const [addForm, setAddForm] = useState({
-        id: null, // Track ID for editing
-        title: '', type: 'Activity', startDateTime: '', endDateTime: '', location: '', coordinates: null, endLocation: '', endCoordinates: null, notes: '', cost: '', currency: tripDetails.lastUsedCurrency || 'USD', isPaid: false,
+        id: null,
+        title: '', type: 'Activity',
+        startDateTime: '', duration: 120, // Duration in minutes
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        location: '', coordinates: null, endLocation: '', endCoordinates: null, notes: '', cost: '', currency: tripDetails.lastUsedCurrency || 'USD', isPaid: false,
         attachments: [],
         links: []
     });
+
+    const calculateEndTime = (startDateStr, startTimeStr, durationMinutes, startTz, endTz) => {
+        if (!startDateStr || !startTimeStr) return { endDate: startDateStr, endTime: '' };
+
+        const start = new Date(`${startDateStr}T${startTimeStr}`);
+        const end = new Date(start.getTime() + durationMinutes * 60000);
+
+        let finalEnd = end;
+        let tzLabel = null;
+
+        if (startTz && endTz && startTz !== endTz) {
+            try {
+                const getOffset = (d, tz) => {
+                    const str = d.toLocaleString('en-US', { timeZone: tz, timeZoneName: 'longOffset' });
+                    const match = str.match(/([+-])(\d+):(\d+)/);
+                    if (!match) return 0;
+                    return (match[1] === '+' ? 1 : -1) * (parseInt(match[2]) * 60 + parseInt(match[3]));
+                };
+                const startOffset = getOffset(start, startTz);
+                const endOffset = getOffset(end, endTz);
+                const diff = endOffset - startOffset;
+                finalEnd = new Date(end.getTime() + diff * 60000);
+                tzLabel = endTz;
+            } catch (e) { console.error('TZ Error', e); }
+        }
+
+        const pad = n => n.toString().padStart(2, '0');
+        const endDate = `${finalEnd.getFullYear()}-${pad(finalEnd.getMonth() + 1)}-${pad(finalEnd.getDate())}`;
+        const endTime = `${pad(finalEnd.getHours())}:${pad(finalEnd.getMinutes())}`;
+
+        return { endDate, endTime, tzLabel };
+    };
 
     const handleAddOpen = () => {
         let defaultStart = '';
@@ -62,7 +95,7 @@ export const Itinerary = () => {
             if (lastEvent) {
                 const lastEnd = new Date((lastEvent.endDate || lastEvent.startDate || lastEvent.date) + 'T' + (lastEvent.endTime || lastEvent.startTime || '10:00'));
                 // Add 1 hour buffer
-                lastEnd.setHours(lastEnd.getHours() + 1);
+                // lastEnd.setHours(lastEnd.getHours() + 1); // Maybe don't auto-buffer, just take same day?
 
                 // Format for datetime-local: YYYY-MM-DDTHH:mm
                 defaultStart = `${lastEnd.getFullYear()}-${pad(lastEnd.getMonth() + 1)}-${pad(lastEnd.getDate())}T${pad(lastEnd.getHours())}:${pad(lastEnd.getMinutes())}`;
@@ -74,7 +107,9 @@ export const Itinerary = () => {
         setAddForm({
             id: null,
             title: '', type: 'Activity',
-            startDateTime: defaultStart, endDateTime: '',
+            startDateTime: defaultStart, duration: 60,
+            timeZone: tripDetails.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+            destinationTimeZone: tripDetails.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
             location: '', coordinates: null, endLocation: '', endCoordinates: null, notes: '', cost: '', currency: tripDetails.lastUsedCurrency || 'USD', isPaid: false,
             attachments: [],
             links: []
@@ -85,12 +120,24 @@ export const Itinerary = () => {
     };
 
     const handleEditOpen = (item) => {
+        // Calculate duration from start/end if available in legacy item, else use item.duration or default 60
+        let duration = item.duration || 60;
+        if (!item.duration && item.startTime && item.endTime) {
+            const start = new Date(`2000-01-01T${item.startTime}`);
+            const end = new Date(`2000-01-01T${item.endTime}`);
+            if (end > start) {
+                duration = (end - start) / 60000;
+            }
+        }
+
         setAddForm({
             id: item.id,
             title: item.title,
             type: item.type,
             startDateTime: `${item.startDate || item.date}T${item.startTime || item.time}`,
-            endDateTime: item.endDate && item.endTime ? `${item.endDate}T${item.endTime}` : (item.endTime ? `${item.startDate || item.date}T${item.endTime}` : ''),
+            duration: duration,
+            timeZone: item.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+            destinationTimeZone: item.destinationTimeZone || item.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
             location: item.location,
             coordinates: item.coordinates,
             endLocation: item.endLocation || '',
@@ -114,15 +161,13 @@ export const Itinerary = () => {
         // Basic Validation
         if (!addForm.title) { setFormError(t.title + ' is required'); return; }
         if (!addForm.startDateTime) { setFormError(t.dateRange + ' is required'); return; }
+        if (addForm.duration <= 0) { setFormError('Duration must be positive'); return; }
 
         const [startDate, startTime] = addForm.startDateTime ? addForm.startDateTime.split('T') : ['', ''];
-        const [endDate, endTime] = addForm.endDateTime ? addForm.endDateTime.split('T') : [startDate, ''];
 
-        // Validate End Date >= Start Date
-        if (addForm.endDateTime && new Date(addForm.endDateTime) < new Date(addForm.startDateTime)) {
-            setFormError("End time cannot be earlier than start time");
-            return;
-        }
+        // Calculate end date/time internally for storage if needed, but we mostly rely on duration now.
+        // But for sorting and compatibility we might want to store implicit endTime or just duration.
+        // We will store duration mostly.
 
         const newItem = {
             id: editMode ? addForm.id : Date.now(),
@@ -131,8 +176,9 @@ export const Itinerary = () => {
             category: getBudgetCategory(addForm.type, null),
             startDate,
             startTime,
-            endDate: endDate || startDate,
-            endTime,
+            duration: parseInt(addForm.duration),
+            timeZone: addForm.timeZone,
+            destinationTimeZone: addForm.destinationTimeZone,
             location: addForm.location,
             coordinates: addForm.coordinates,
             endLocation: addForm.endLocation,
@@ -180,44 +226,55 @@ export const Itinerary = () => {
 
     const sortedDates = Object.keys(groupedItinerary).sort();
 
+    // Helper for duration display
+    const formatDuration = (mins) => {
+        const h = Math.floor(mins / 60);
+        const m = mins % 60;
+        if (h > 0 && m > 0) return `${h}h ${m}m`;
+        if (h > 0) return `${h}h`;
+        return `${m}m`;
+    };
+
     return (
         <div className="animate-fadeIn">
-            <div className="flex justify-between items-center mb-6">
-                <SectionTitle icon={Calendar} title={t.itinerary} />
-                <div className="flex flex-col items-end">
-                    <div className="flex items-center bg-white border border-slate-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all overflow-hidden h-10">
-                        <div className="flex items-center px-3 border-r border-slate-100 bg-slate-50/50 h-full">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
+                <SectionTitle icon={Calendar} title={t.itinerary} subtitle={t.itinerarySubtitle} subtitleClassName="hidden md:block" />
+                <div className="flex flex-col items-stretch md:items-end gap-3 w-full md:w-auto">
+                    <div className="grid grid-cols-[auto_1fr_auto] grid-rows-2 md:flex md:flex-row items-stretch md:items-center bg-white border border-slate-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all overflow-hidden w-full">
+                        <div className="row-start-1 col-start-1 flex items-center px-3 py-2 border-r border-b md:border-b-0 border-slate-100 bg-slate-50/50 h-full">
                             <Sparkles size={14} className="text-indigo-500" />
                         </div>
                         <select
                             value={aiMode}
                             onChange={(e) => setAiMode(e.target.value)}
-                            className="bg-transparent px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 outline-none border-r border-slate-100 h-full cursor-pointer hover:bg-slate-50 transition-colors"
+                            className="row-start-1 col-start-2 bg-transparent px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 outline-none border-b md:border-b-0 border-slate-100 h-full cursor-pointer hover:bg-slate-50 transition-colors"
                         >
                             <option value="add">{t.addNew}</option>
                             <option value="update">{t.updateExisting}</option>
                             <option value="fill">{t.fillGaps}</option>
+                            <option value="dedupe">{t.removeDuplicates}</option>
                         </select>
                         <input
                             type="text"
                             value={localPrompt}
                             onChange={(e) => setLocalPrompt(e.target.value)}
                             placeholder="AI Suggestions..."
-                            className="bg-transparent px-3 py-2 text-xs outline-none flex-1 text-slate-700 placeholder:text-slate-400 font-medium h-full"
+                            className="row-start-2 col-start-1 col-span-2 bg-transparent px-3 py-2 text-xs outline-none flex-1 min-w-[150px] text-slate-700 placeholder:text-slate-400 font-medium border-r md:border-r-0 border-slate-100"
                         />
                         <button
                             onClick={() => dispatch(generateTrip({ targetArea: 'itinerary', customPrompt: localPrompt, aiMode }))}
                             disabled={loading}
-                            className={`px-4 py-2 text-xs font-bold text-white transition-all flex items-center gap-2 h-full ${loading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95'}`}
+                            className={`row-start-1 row-span-2 col-start-3 px-4 py-2 text-xs font-bold text-white transition-all flex items-center justify-center gap-2 ${loading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95'}`}
                         >
                             {loading ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
-                            Generate
+                            <span className={loading ? "" : "md:inline"}>{loading ? "" : "Generate"}</span>
                         </button>
                     </div>
-                    <Button onClick={handleAddOpen} icon={Plus} className="mt-2 h-9 text-xs px-4" variant="secondary">{t.addEvent}</Button>
+                    <div className="flex gap-2">
+                        <Button onClick={handleAddOpen} icon={Plus} className="flex-1 md:flex-initial h-9 text-xs px-4" variant="secondary">{t.addEvent}</Button>
+                    </div>
                 </div>
             </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Timeline Side */}
                 <div className="lg:col-span-3">
@@ -232,7 +289,7 @@ export const Itinerary = () => {
                             {sortedDates.map(dateKey => (
                                 <div key={dateKey} className="relative">
                                     {/* Day Header */}
-                                    <div className="flex items-center justify-between mb-6 bg-slate-100 p-3 rounded-xl sticky top-20 z-20 shadow-sm border border-slate-200">
+                                    <div className="flex items-center justify-between mb-6 bg-slate-100 p-3 rounded-xl sticky top-0 z-30 shadow-sm border border-slate-200">
                                         <h3 className="font-bold text-slate-700 flex items-center gap-2">
                                             <Calendar size={18} className="text-indigo-600" />
                                             {new Date(dateKey).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
@@ -249,160 +306,161 @@ export const Itinerary = () => {
 
                                     {/* Events Line */}
                                     <div className="space-y-8 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
-                                        {groupedItinerary[dateKey].map((item, idx) => (
-                                            <div key={item.id} className="relative flex items-start group">
-                                                {/* Timeline Dot */}
-                                                <div className={`absolute left-0 h-10 w-10 rounded-full flex items-center justify-center shadow-sm z-10 ${getEventColor(item.type)}`}>
-                                                    {getEventIcon(item.type)}
-                                                </div>
+                                        {groupedItinerary[dateKey].map((item, idx) => {
+                                            const { endTime, tzLabel } = calculateEndTime(item.startDate || item.date, item.startTime || item.time, item.duration || 60, item.timeZone, item.destinationTimeZone);
 
-                                                {/* Content */}
-                                                <div className="ml-16 bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex-1 hover:shadow-md transition-shadow">
+                                            return (
+                                                <div key={item.id} className="relative flex items-start group">
+                                                    {/* Timeline Dot */}
+                                                    <div className={`absolute left-0 h-10 w-10 rounded-full flex items-center justify-center shadow-sm z-10 ${getEventColor(item.type)}`}>
+                                                        {getEventIcon(item.type)}
+                                                    </div>
 
-                                                    {item.isEditing ? (
-                                                        <div className="space-y-3">
-                                                            <input value={item.title} onChange={e => updateItineraryItem(item.id, 'title', e.target.value)} className="w-full border p-1 rounded text-sm font-bold" />
-                                                            <div className="grid grid-cols-2 gap-2">
-                                                                <div className="flex items-center gap-1">
-                                                                    <input type="date" value={item.startDate || item.date} onChange={e => updateItineraryItem(item.id, 'startDate', e.target.value)} className="border p-1 rounded text-sm flex-1 min-w-0" />
-                                                                    <span className="text-slate-400 shrink-0">→</span>
-                                                                    <input type="date" min={item.startDate || item.date} value={item.endDate || item.startDate || item.date} onChange={e => updateItineraryItem(item.id, 'endDate', e.target.value)} className="border p-1 rounded text-sm flex-1 min-w-0" />
+                                                    {/* Content */}
+                                                    <div className="ml-16 bg-white rounded-xl p-5 shadow-sm border border-slate-100 flex-1 hover:shadow-md transition-shadow">
+
+                                                        {item.isEditing ? (
+                                                            <div className="space-y-3">
+                                                                <input value={item.title} onChange={e => updateItineraryItem(item.id, 'title', e.target.value)} className="w-full border p-1 rounded text-sm font-bold" />
+                                                                <div className="grid grid-cols-2 gap-2">
+                                                                    <div className="flex items-center gap-1">
+                                                                        <input type="date" value={item.startDate || item.date} onChange={e => updateItineraryItem(item.id, 'startDate', e.target.value)} className="border p-1 rounded text-sm flex-1 min-w-0" />
+                                                                    </div>
+                                                                    <div className="flex items-center gap-1">
+                                                                        <input type="time" value={item.startTime || item.time} onChange={e => updateItineraryItem(item.id, 'startTime', e.target.value)} className="border p-1 rounded text-sm flex-1 min-w-0" />
+                                                                    </div>
+                                                                    <div className="col-span-2 flex items-center gap-1">
+                                                                        <Clock size={14} className="text-slate-400" />
+                                                                        <input type="number" value={item.duration || 60} onChange={e => updateItineraryItem(item.id, 'duration', parseInt(e.target.value))} className="border p-1 rounded text-sm w-20" /> <span className="text-xs text-slate-400">min</span>
+                                                                    </div>
                                                                 </div>
-                                                                <div className="flex items-center gap-1">
-                                                                    <input type="time" value={item.startTime || item.time} onChange={e => updateItineraryItem(item.id, 'startTime', e.target.value)} className="border p-1 rounded text-sm flex-1 min-w-0" />
-                                                                    <span className="text-slate-400 self-center">-</span>
-                                                                    <input type="time" min={item.startTime} value={item.endTime || ''} onChange={e => updateItineraryItem(item.id, 'endTime', e.target.value)} className="border p-1 rounded text-sm flex-1 min-w-0" />
-                                                                </div>
-                                                            </div>
-                                                            <input value={item.location} onChange={e => updateItineraryItem(item.id, 'location', e.target.value)} className="w-full border p-1 rounded text-sm" placeholder="Location" />
-                                                            <textarea value={item.notes} onChange={e => updateItineraryItem(item.id, 'notes', e.target.value)} className="w-full border p-1 rounded text-sm h-20" placeholder="Notes" />
-                                                            <div className="space-y-2">
-                                                                <select value={item.type} onChange={e => updateItineraryItem(item.id, 'type', e.target.value)} className="border p-2 rounded-lg text-sm w-full bg-slate-50">
-                                                                    {EVENT_TYPES.map(type => (
-                                                                        <option key={type} value={type}>{type}</option>
-                                                                    ))}
-                                                                </select>
-                                                                <div className="flex gap-2 items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
-                                                                    <label className="text-xs font-bold text-slate-500 uppercase px-1">{t.cost}</label>
-                                                                    <input type="number" value={item.cost} onChange={e => updateItineraryItem(item.id, 'cost', parseFloat(e.target.value))} className="bg-white border border-slate-200 rounded p-1 text-sm w-full outline-none" placeholder="0" />
-                                                                    <select value={item.currency} onChange={e => updateItineraryItem(item.id, 'currency', e.target.value)} className="bg-white border border-slate-200 rounded p-1 text-xs font-bold w-30 outline-none">
-                                                                        {activeCurrencies.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                                                                <input value={item.location} onChange={e => updateItineraryItem(item.id, 'location', e.target.value)} className="w-full border p-1 rounded text-sm" placeholder="Location" />
+                                                                <textarea value={item.notes} onChange={e => updateItineraryItem(item.id, 'notes', e.target.value)} className="w-full border p-1 rounded text-sm h-20" placeholder="Notes" />
+                                                                <div className="space-y-2">
+                                                                    <select value={item.type} onChange={e => updateItineraryItem(item.id, 'type', e.target.value)} className="border p-2 rounded-lg text-sm w-full bg-slate-50">
+                                                                        {EVENT_TYPES.map(type => (
+                                                                            <option key={type} value={type}>{type}</option>
+                                                                        ))}
                                                                     </select>
-                                                                    <div className="flex items-center gap-1 shrink-0 ml-1 border-l pl-2 border-slate-200">
-                                                                        <input type="checkbox" checked={item.isPaid} onChange={e => updateItineraryItem(item.id, 'isPaid', e.target.checked)} id={`paid-${item.id}`} className="w-4 h-4 text-indigo-600 rounded" />
-                                                                        <label htmlFor={`paid-${item.id}`} className="text-[10px] font-bold text-slate-500 uppercase">{t.paid}</label>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex justify-end gap-2 mt-2">
-                                                                <Button variant="secondary" onClick={() => updateItineraryItem(item.id, 'isEditing', false)}>{t.cancel}</Button>
-                                                                <Button onClick={() => updateItineraryItem(item.id, 'isEditing', false)} icon={SaveIcon}>{t.saveChanges}</Button>
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex flex-col md:flex-row gap-4">
-                                                            {item.image && (
-                                                                <div className="w-full md:w-32 h-32 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100 border border-slate-100">
-                                                                    <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
-                                                                </div>
-                                                            )}
-                                                            <div className="flex-1">
-                                                                <div className="flex justify-between items-start">
-                                                                    <div>
-                                                                        <h4 className="font-bold text-lg text-slate-800">{item.title}</h4>
-                                                                        <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-400 uppercase mt-1">
-                                                                            <span>{item.type || 'Activity'}</span>
-                                                                            {item.cost > 0 && (
-                                                                                <span className={`px-2 py-0.5 rounded-full ${item.isPaid ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                                                                                    {item.currency} {item.cost} {item.isPaid ? '(Paid)' : '(Est)'}
-                                                                                </span>
-                                                                            )}
+                                                                    <div className="flex gap-2 items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
+                                                                        <label className="text-xs font-bold text-slate-500 uppercase px-1">{t.cost}</label>
+                                                                        <input type="number" value={item.cost} onChange={e => updateItineraryItem(item.id, 'cost', parseFloat(e.target.value))} className="bg-white border border-slate-200 rounded p-1 text-sm w-full outline-none" placeholder="0" />
+                                                                        <select value={item.currency} onChange={e => updateItineraryItem(item.id, 'currency', e.target.value)} className="bg-white border border-slate-200 rounded p-1 text-xs font-bold w-30 outline-none">
+                                                                            {activeCurrencies.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                                                                        </select>
+                                                                        <div className="flex items-center gap-1 shrink-0 ml-1 border-l pl-2 border-slate-200">
+                                                                            <input type="checkbox" checked={item.isPaid} onChange={e => updateItineraryItem(item.id, 'isPaid', e.target.checked)} id={`paid-${item.id}`} className="w-4 h-4 text-indigo-600 rounded" />
+                                                                            <label htmlFor={`paid-${item.id}`} className="text-[10px] font-bold text-slate-500 uppercase">{t.paid}</label>
                                                                         </div>
                                                                     </div>
-                                                                    <div className="text-right">
-                                                                        <div className="text-sm font-bold text-indigo-600">
-                                                                            {item.startTime || item.time}
-                                                                            {item.endTime && <span className="text-slate-400 font-normal"> - {item.endTime}</span>}
-                                                                            {(item.endDate && item.endDate !== (item.startDate || item.date)) && (
-                                                                                <span className="text-xs text-amber-600 ml-1 font-normal bg-amber-50 px-1 rounded">
-                                                                                    (+{(new Date(item.endDate) - new Date(item.startDate || item.date)) / (1000 * 60 * 60 * 24)}d)
-                                                                                </span>
-                                                                            )}
-                                                                        </div>
-                                                                        <button onClick={() => handleEditOpen(item)} className="text-xs text-slate-400 hover:text-indigo-600 flex items-center justify-end gap-1 mt-1 w-full">
-                                                                            <Edit2 size={12} /> {t.editEvent}
-                                                                        </button>
+                                                                </div>
+                                                                <div className="flex justify-end gap-2 mt-2">
+                                                                    <Button variant="secondary" onClick={() => updateItineraryItem(item.id, 'isEditing', false)}>{t.cancel}</Button>
+                                                                    <Button onClick={() => updateItineraryItem(item.id, 'isEditing', false)} icon={SaveIcon}>{t.saveChanges}</Button>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex flex-col md:flex-row gap-4">
+                                                                {item.image && (
+                                                                    <div className="w-full md:w-32 h-32 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100 border border-slate-100">
+                                                                        <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
                                                                     </div>
-                                                                </div>
-
-                                                                <div className="flex items-center gap-1 text-sm text-slate-500 mt-2 mb-3">
-                                                                    <MapPin size={14} />
-                                                                    {item.location}
-                                                                    {item.endLocation && (
-                                                                        <>
-                                                                            <span className="mx-1">→</span>
-                                                                            <MapPin size={14} />
-                                                                            {item.endLocation}
-                                                                        </>
-                                                                    )}
-                                                                </div>
-
-                                                                {(item.location && item.endLocation) && (
-                                                                    <a
-                                                                        href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(item.location)}&destination=${encodeURIComponent(item.endLocation)}`}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 mb-2"
-                                                                    >
-                                                                        <MapIcon size={12} /> View Route
-                                                                    </a>
                                                                 )}
-
-                                                                {/* Attachments & Links Preview */}
-                                                                {(item.attachments?.length > 0 || item.links?.length > 0) && (
-                                                                    <div className="flex flex-wrap gap-2 mt-2 mb-2">
-                                                                        {item.attachments?.map(a => (
-                                                                            <button key={a.id} onClick={() => setPreviewFile(a)} className="inline-flex items-center gap-1 text-xs bg-slate-100 px-2 py-1 rounded text-slate-600 hover:text-indigo-600 border border-slate-200 transition-colors" title="Preview File">
-                                                                                <Paperclip size={10} /> {a.name}
+                                                                <div className="flex-1">
+                                                                    <div className="flex justify-between items-start">
+                                                                        <div>
+                                                                            <h4 className="font-bold text-lg text-slate-800">{item.title}</h4>
+                                                                            <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-400 uppercase mt-1">
+                                                                                <span>{item.type || 'Activity'}•</span>
+                                                                                <span className="flex items-center gap-1"><Clock size={10} /> {formatDuration(item.duration || 60)}</span>
+                                                                                {item.cost > 0 && (
+                                                                                    <span className={`px-2 py-0.5 rounded-full ${item.isPaid ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                                                                                        {item.currency} {item.cost} {item.isPaid ? '(Paid)' : '(Est)'}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="text-right">
+                                                                            <div className="text-sm font-bold text-indigo-600">
+                                                                                {item.startTime || item.time}
+                                                                                {endTime && <span className="text-slate-400 font-normal"> - {endTime} {tzLabel && <span className="text-[10px] uppercase text-indigo-400">({tzLabel.split('/').pop().replace(/_/g, ' ')})</span>}</span>}
+                                                                                {!tzLabel && item.timeZone && <div className="text-[10px] text-slate-400 font-normal mt-0.5">{item.timeZone.split('/').pop().replace('_', ' ')}</div>}
+                                                                            </div>
+                                                                            <button onClick={() => handleEditOpen(item)} className="text-xs text-slate-400 hover:text-indigo-600 flex items-center justify-end gap-1 mt-1 w-full">
+                                                                                <Edit2 size={12} /> {t.editEvent}
                                                                             </button>
-                                                                        ))}
-                                                                        {item.links?.map(l => (
-                                                                            <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs bg-indigo-50 px-2 py-1 rounded text-indigo-600 hover:underline border border-indigo-100">
-                                                                                <LinkIcon size={10} /> {l.label}
-                                                                            </a>
-                                                                        ))}
+                                                                        </div>
                                                                     </div>
-                                                                )}
 
-                                                                {item.notes && (
-                                                                    <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg italic border-l-2 border-slate-200">
-                                                                        {item.notes}
-                                                                    </p>
-                                                                )}
+                                                                    <div className="flex items-center gap-1 text-sm text-slate-500 mt-2 mb-3">
+                                                                        <MapPin size={14} />
+                                                                        {item.location}
+                                                                        {item.endLocation && (
+                                                                            <>
+                                                                                <span className="mx-1">→</span>
+                                                                                <MapPin size={14} />
+                                                                                {item.endLocation}
+                                                                            </>
+                                                                        )}
+                                                                    </div>
 
-                                                                <div className="flex justify-between mt-4 items-end border-t border-slate-100 pt-3">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <button
-                                                                            onClick={() => updateItineraryItem(item.id, 'isPaid', !item.isPaid)}
-                                                                            className={`flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors ${item.isPaid ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                                                                    {(item.location && item.endLocation) && (
+                                                                        <a
+                                                                            href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(item.location)}&destination=${encodeURIComponent(item.endLocation)}`}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 mb-2"
                                                                         >
-                                                                            <CheckCircle size={12} /> {item.isPaid ? t.paid : t.markPaid}
-                                                                        </button>
+                                                                            <MapIcon size={12} /> View Route
+                                                                        </a>
+                                                                    )}
 
+                                                                    {/* Attachments & Links Preview */}
+                                                                    {(item.attachments?.length > 0 || item.links?.length > 0) && (
+                                                                        <div className="flex flex-wrap gap-2 mt-2 mb-2">
+                                                                            {item.attachments?.map(a => (
+                                                                                <button key={a.id} onClick={() => setPreviewFile(a)} className="inline-flex items-center gap-1 text-xs bg-slate-100 px-2 py-1 rounded text-slate-600 hover:text-indigo-600 border border-slate-200 transition-colors" title="Preview File">
+                                                                                    <Paperclip size={10} /> {a.name}
+                                                                                </button>
+                                                                            ))}
+                                                                            {item.links?.map(l => (
+                                                                                <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs bg-indigo-50 px-2 py-1 rounded text-indigo-600 hover:underline border border-indigo-100">
+                                                                                    <LinkIcon size={10} /> {l.label}
+                                                                                </a>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+
+                                                                    {item.notes && (
+                                                                        <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg italic border-l-2 border-slate-200">
+                                                                            {item.notes}
+                                                                        </p>
+                                                                    )}
+
+                                                                    <div className="flex justify-between mt-4 items-end border-t border-slate-100 pt-3">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <button
+                                                                                onClick={() => updateItineraryItem(item.id, 'isPaid', !item.isPaid)}
+                                                                                className={`flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors ${item.isPaid ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                                                                            >
+                                                                                <CheckCircle size={12} /> {item.isPaid ? t.paid : t.markPaid}
+                                                                            </button>
+
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => handleDelete(item.id)}
+                                                                            className="text-slate-300 hover:text-red-500 p-1"
+                                                                        >
+                                                                            <Trash2 size={16} />
+                                                                        </button>
                                                                     </div>
-                                                                    <button
-                                                                        onClick={() => handleDelete(item.id)}
-                                                                        className="text-slate-300 hover:text-red-500 p-1"
-                                                                    >
-                                                                        <Trash2 size={16} />
-                                                                    </button>
                                                                 </div>
                                                             </div>
-                                                        </div>
-                                                    )}
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             ))}
@@ -470,16 +528,62 @@ export const Itinerary = () => {
                                 className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
                             />
                         </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.end}</label>
-                            <input
-                                type="datetime-local"
-                                min={addForm.startDateTime}
-                                value={addForm.endDateTime}
-                                onChange={e => setAddForm({ ...addForm, endDateTime: e.target.value })}
-                                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                            />
+                        <div className="flex flex-col">
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Duration</label>
+                            <div className="flex gap-2 items-center">
+                                <div className="flex-1 relative">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={Math.floor(addForm.duration / 60)}
+                                        onChange={e => setAddForm({ ...addForm, duration: (parseInt(e.target.value || 0) * 60) + (addForm.duration % 60) })}
+                                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm pl-2 pr-6"
+                                        placeholder="0"
+                                    />
+                                    <span className="absolute right-2 top-2 text-xs text-slate-400">h</span>
+                                </div>
+                                <div className="flex-1 relative">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max="59"
+                                        value={addForm.duration % 60}
+                                        onChange={e => setAddForm({ ...addForm, duration: (Math.floor(addForm.duration / 60) * 60) + parseInt(e.target.value || 0) })}
+                                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm pl-2 pr-6"
+                                        placeholder="0"
+                                    />
+                                    <span className="absolute right-2 top-2 text-xs text-slate-400">m</span>
+                                </div>
+                            </div>
                         </div>
+                    </div>
+
+                    {/* Timezone */}
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Globe size={12} /> Time Zone</label>
+                        <select
+                            value={addForm.timeZone}
+                            onChange={e => setAddForm({ ...addForm, timeZone: e.target.value })}
+                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
+                        >
+                            {Intl.supportedValuesOf('timeZone').map(tz => (
+                                <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Destination Timezone */}
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Globe size={12} /> Destination Time Zone (if different)</label>
+                        <select
+                            value={addForm.destinationTimeZone}
+                            onChange={e => setAddForm({ ...addForm, destinationTimeZone: e.target.value })}
+                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
+                        >
+                            {Intl.supportedValuesOf('timeZone').map(tz => (
+                                <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
+                            ))}
+                        </select>
                     </div>
 
                     <div>

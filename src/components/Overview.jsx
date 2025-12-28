@@ -125,10 +125,7 @@ export const Overview = ({ onSave, onLoad }) => {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">{t.nextFocus || "Your Next Priority"}</span>
-                  <span className="text-[10px] font-medium text-slate-400 italic">
-                    {focusItem.type === 'task' ? t.focusTask : t.focusEvent}
-                  </span>
+                  <span className="hidden md:inline-block text-[10px] font-bold text-indigo-500 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">{t.nextFocus || "Your Next Priority"}</span>
                 </div>
                 <h4 className="text-lg font-bold text-slate-800 truncate">{focusItem.text || focusItem.title}</h4>
                 <div className="flex items-center gap-4 mt-1">
@@ -155,7 +152,7 @@ export const Overview = ({ onSave, onLoad }) => {
 
               <Button
                 variant="secondary"
-                className="opacity-0 group-hover:opacity-100 transition-opacity text-xs h-9 px-4"
+                className="hidden md:flex text-xs h-9 px-4"
                 onClick={() => dispatch(setActiveTab(focusItem.type === 'task' ? 'tasks' : 'itinerary'))}
               >
                 {t.viewAll}
