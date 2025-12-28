@@ -28,12 +28,12 @@ export const PackingList = () => {
         if (modal.type === 'category') {
             dispatch(setPackingList([
                 ...packingList,
-                { id: Date.now(), category: inputValue, items: [] }
+                { id: `pcat-${Date.now()}-${Math.random()}`, category: inputValue, items: [] }
             ]));
         } else if (modal.type === 'item') {
             dispatch(setPackingList(packingList.map(cat => {
                 if (cat.id === modal.categoryId) {
-                    return { ...cat, items: [...cat.items, { id: Date.now(), text: inputValue, done: false }] };
+                    return { ...cat, items: [...cat.items, { id: `pack-${Date.now()}-${Math.random()}`, text: inputValue, done: false }] };
                 }
                 return cat;
             })));
@@ -167,7 +167,7 @@ export const PackingList = () => {
                                     <input
                                         type="checkbox"
                                         checked={item.done}
-                                        onChange={() => toggleItem(category.id, item.id)}
+                                        onChange={() => toggleItem(item.id, category.id)}
                                         className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                                     />
                                     <span className={`flex-1 text-sm ${item.done ? 'text-slate-400 line-through' : 'text-slate-700'}`}>

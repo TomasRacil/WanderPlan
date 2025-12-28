@@ -9,7 +9,8 @@ export const generateTrip = createAsyncThunk(
         if (!apiKey) return rejectWithValue("API Key missing");
 
         try {
-            const data = await generateTripContent(apiKey, tripDetails, customPrompt, itinerary, preTripTasks, language, targetArea, aiMode);
+            const { packingList } = getState().trip;
+            const data = await generateTripContent(apiKey, tripDetails, customPrompt, itinerary, preTripTasks, packingList, language, targetArea, aiMode);
             return { data, targetArea, aiMode };
         } catch (error) {
             return rejectWithValue(error.message);
@@ -149,7 +150,14 @@ export const tripSlice = createSlice({
             state.expenses = action.payload;
         },
         setPackingList: (state, action) => {
-            state.packingList = action.payload;
+            state.packingList = (action.payload || []).map(cat => ({
+                ...cat,
+                id: cat.id || `pcat-${Date.now()}-${Math.random()}`,
+                items: (cat.items || []).map(item => ({
+                    ...item,
+                    id: item.id || `pack-${Date.now()}-${Math.random()}`
+                }))
+            }));
         },
         loadFullTrip: (state, action) => {
             const data = action.payload;
@@ -157,7 +165,16 @@ export const tripSlice = createSlice({
             if (data.preTripTasks) state.preTripTasks = data.preTripTasks;
             if (data.itinerary) state.itinerary = data.itinerary;
             if (data.expenses) state.expenses = data.expenses;
-            if (data.packingList) state.packingList = data.packingList;
+            if (data.packingList) {
+                state.packingList = data.packingList.map(cat => ({
+                    ...cat,
+                    id: cat.id || `pcat-${Date.now()}-${Math.random()}`,
+                    items: (cat.items || []).map(item => ({
+                        ...item,
+                        id: item.id || `pack-${Date.now()}-${Math.random()}`
+                    }))
+                }));
+            }
             if (data.phrasebook) state.phrasebook = data.phrasebook;
             if (data.language) state.language = data.language;
             if (data.exchangeRates) state.exchangeRates = data.exchangeRates;
@@ -172,165 +189,157 @@ export const tripSlice = createSlice({
         discardProposedChanges: (state) => {
             state.proposedChanges = null;
         },
+        toggleProposedChange: (state, action) => {
+            const { type, id } = action.payload; // type: 'adds', 'updates', 'deletes'
+            if (!state.proposedChanges || !state.proposedChanges.data) return;
+
+            const list = state.proposedChanges.data[type];
+            if (!list) return;
+
+            if (type === 'deletes') {
+                // Deletes is just a list of IDs, so we need a parallel list or change structure
+                // Let's convert deletes to objects if it's not already
+                if (typeof list[0] === 'string') {
+                    state.proposedChanges.data.deletes = list.map(dId => ({ id: dId, ignored: false }));
+                }
+                const index = state.proposedChanges.data.deletes.findIndex(d => d.id === id);
+                if (index > -1) {
+                    state.proposedChanges.data.deletes[index].ignored = !state.proposedChanges.data.deletes[index].ignored;
+                }
+            } else {
+                const index = list.findIndex(item => item.id === id || (type === 'adds' && JSON.stringify(item) === id));
+                if (index > -1) {
+                    list[index].ignored = !list[index].ignored;
+                }
+            }
+        },
         applyProposedChanges: (state) => {
             const { data, targetArea, aiMode } = state.proposedChanges || {};
             if (!data) return;
 
-            // Handle Trip Currency if returned
-            if (data.tripCurrency) {
-                state.tripDetails.tripCurrency = data.tripCurrency;
-            }
+            // Filter out ignored changes
+            const adds = (data.adds || []).filter(item => !item.ignored);
+            const updates = (data.updates || []).filter(item => !item.ignored);
+            const deletes = (data.deletes || []).filter(item => !item.ignored).map(d => typeof d === 'string' ? d : d.id);
 
-            // Merge Pre-Trip Tasks (if area is tasks or all)
-            if (data.newPreTrip) {
-                if (aiMode === 'dedupe') {
-                    // In dedupe mode, AI returns the CLEANED list. We replace the current tasks.
-                    // We try to preserve 'done' status if possible by matching text.
-                    const currentTasksMap = new Map(state.preTripTasks.map(t => [t.text.toLowerCase(), t]));
-
-                    state.preTripTasks = data.newPreTrip.map(t => {
-                        const existing = currentTasksMap.get(t.text.toLowerCase());
-                        return {
-                            id: existing ? existing.id : Date.now() + Math.random(),
-                            text: t.text,
-                            done: existing ? existing.done : false,
-                            attachments: existing ? existing.attachments : [],
-                            cost: t.cost || (existing ? existing.cost : 0),
-                            currency: t.currency || (existing ? existing.currency : state.tripDetails.homeCurrency),
-                            isPaid: existing ? existing.isPaid : false,
-                            category: t.category || (existing ? existing.category : 'Documents'),
-                            isEditing: false,
-                            timeToComplete: t.timeToComplete || (existing ? existing.timeToComplete : ''),
-                            dueDate: t.dueDate || (existing ? existing.dueDate : ''),
-                            notes: t.notes || (existing ? existing.notes : '')
-                        };
-                    });
-                } else {
-                    data.newPreTrip.forEach(t => {
-                        const existingIndex = state.preTripTasks.findIndex(
-                            et => et.text.toLowerCase() === t.text.toLowerCase()
-                        );
-
-                        if (existingIndex > -1) {
-                            // Enrich existing task
-                            const et = state.preTripTasks[existingIndex];
-                            // Strict update only if mode is update or fill
-                            if (aiMode === 'update' || aiMode === 'fill' || !aiMode) {
-                                state.preTripTasks[existingIndex] = {
-                                    ...et,
-                                    cost: t.cost || et.cost,
-                                    currency: t.currency || et.currency,
-                                    category: t.category || et.category,
-                                    timeToComplete: t.timeToComplete || et.timeToComplete,
-                                    dueDate: t.dueDate || et.dueDate,
-                                    notes: t.notes || et.notes
-                                };
-                            }
-                        } else if (aiMode !== 'update') {
-                            // Add new task
-                            state.preTripTasks.push({
-                                id: Date.now() + Math.random(),
-                                text: t.text,
-                                done: false,
-                                attachments: [],
-                                cost: t.cost || 0,
-                                currency: t.currency || state.tripDetails.homeCurrency,
-                                isPaid: false,
-                                category: t.category || 'Documents',
-                                isEditing: false,
-                                timeToComplete: t.timeToComplete || '',
-                                dueDate: t.dueDate || '',
-                                notes: t.notes || ''
-                            });
-                        }
-                    });
-                }
-            }
-
-            // Merge Packing List (if area is packing or all)
-            if (data.newPacking) {
-                if (aiMode === 'dedupe') {
-                    // In dedupe mode for packing, we rebuild the structure based on AI return
-                    // trying to preserve 'done' status.
-                    const currentItemsMap = new Map();
-                    state.packingList.forEach(cat => {
-                        cat.items.forEach(item => currentItemsMap.set(item.text.toLowerCase(), item.done));
-                    });
-
-                    state.packingList = data.newPacking.map(cat => ({
-                        id: Date.now() + Math.random(),
-                        category: cat.category,
-                        items: cat.items.map(itemName => ({
-                            id: Date.now() + Math.random(),
-                            text: itemName,
-                            done: currentItemsMap.get(itemName.toLowerCase()) || false
-                        }))
-                    }));
-                } else {
-                    data.newPacking.forEach(newCat => {
-                        const existingCat = state.packingList.find(c => c.category === newCat.category);
-                        if (existingCat) {
-                            const existingItems = new Set(existingCat.items.map(i => i.text.toLowerCase()));
-                            // Only add new items if mode is NOT 'update'
-                            if (aiMode !== 'update') {
-                                const itemsToAdd = newCat.items
-                                    .filter(i => !existingItems.has(i.toLowerCase()))
-                                    .map(i => ({ id: Date.now() + Math.random(), text: i, done: false }));
-                                existingCat.items.push(...itemsToAdd);
-                            }
-                        } else if (aiMode !== 'update') {
-                            state.packingList.push({
-                                id: Date.now() + Math.random(),
-                                category: newCat.category,
-                                items: newCat.items.map(i => ({ id: Date.now() + Math.random(), text: i, done: false }))
-                            });
-                        }
-                    });
-                }
-            }
-
-            // Merge Itinerary (if area is itinerary or all)
-            if (data.newItinerary) {
-                data.newItinerary.forEach(e => {
-                    // Look for existing event to enrich
-                    const existingEventIndex = state.itinerary.findIndex(
-                        ei => ei.title.toLowerCase() === e.title.toLowerCase() && ei.startDate === e.startDate
-                    );
-
-                    if (existingEventIndex > -1 && (aiMode === 'update' || aiMode === 'fill')) {
-                        const ei = state.itinerary[existingEventIndex];
-                        state.itinerary[existingEventIndex] = {
-                            ...ei,
-                            cost: ei.cost || e.estimatedCost || e.cost || 0,
-                            currency: ei.currency || e.currency || state.tripDetails.tripCurrency,
-                            notes: ei.notes || e.notes || '',
-                            category: ei.category || e.category || 'Activities',
-                            // Replaced endTime with duration
-                            duration: ei.duration || e.duration || 60,
-                            timeZone: ei.timeZone || e.timeZone || '',
-                            location: ei.location || e.location || '',
-                            endLocation: ei.endLocation || e.endLocation || ''
-                        };
-                    } else if (aiMode !== 'update') {
-                        // Only add new if not strictly updating
+            // Handle Adds
+            if (adds.length > 0) {
+                if (targetArea === 'itinerary') {
+                    adds.forEach(e => {
                         state.itinerary.push({
                             ...e,
-                            id: Date.now() + Math.random(),
-                            image: null,
+                            id: `ai-itinerary-${Date.now()}-${Math.random()}`,
                             cost: e.estimatedCost || e.cost || 0,
-                            currency: e.currency || state.tripDetails.tripCurrency,
+                            currency: e.currency || state.tripDetails.tripCurrency || state.tripDetails.homeCurrency,
                             isPaid: false,
                             isEditing: false,
                             category: e.category || 'Activities',
-                            duration: e.duration || 60, // Default duration if missing
+                            duration: e.duration || 60,
                             timeZone: e.timeZone || ''
                         });
-                    }
-                });
-                state.itinerary.sort((a, b) => new Date(a.startDate + ' ' + (a.startTime || '00:00')) - new Date(b.startDate + ' ' + (b.startTime || '00:00')));
+                    });
+                    state.itinerary.sort((a, b) => new Date(a.startDate + ' ' + (a.startTime || '00:00')) - new Date(b.startDate + ' ' + (b.startTime || '00:00')));
+                } else if (targetArea === 'tasks') {
+                    adds.forEach(t => {
+                        state.preTripTasks.push({
+                            id: `ai-task-${Date.now()}-${Math.random()}`,
+                            text: t.text,
+                            done: false,
+                            cost: t.cost || 0,
+                            currency: t.currency || state.tripDetails.homeCurrency,
+                            category: t.category || 'Documents',
+                            isPaid: false,
+                            attachments: [],
+                            notes: t.notes || '',
+                            dueDate: t.dueDate || '',
+                            timeToComplete: t.timeToComplete || ''
+                        });
+                    });
+                } else if (targetArea === 'packing') {
+                    adds.forEach(newCat => {
+                        const existingCat = state.packingList.find(c => c.category === newCat.category);
+                        if (existingCat) {
+                            newCat.items.forEach(newItem => {
+                                if (!existingCat.items.find(i => i.text.toLowerCase() === newItem.toLowerCase())) {
+                                    existingCat.items.push({
+                                        id: `ai-pack-${Date.now()}-${Math.random()}`,
+                                        text: newItem,
+                                        done: false
+                                    });
+                                }
+                            });
+                        } else {
+                            state.packingList.push({
+                                id: `ai-pcat-${Date.now()}-${Math.random()}`,
+                                category: newCat.category,
+                                items: newCat.items.map(i => ({
+                                    id: `ai-pack-${Date.now()}-${Math.random()}`,
+                                    text: i,
+                                    done: false
+                                }))
+                            });
+                        }
+                    });
+                }
             }
 
-            // Phrasebook (if area is phrasebook or all)
+            // Handle Updates
+            if (updates.length > 0) {
+                if (targetArea === 'itinerary') {
+                    updates.forEach(upd => {
+                        const index = state.itinerary.findIndex(i => String(i.id) === String(upd.id));
+                        if (index > -1) {
+                            state.itinerary[index] = { ...state.itinerary[index], ...upd.fields };
+                        }
+                    });
+                    state.itinerary.sort((a, b) => new Date(a.startDate + ' ' + (a.startTime || '00:00')) - new Date(b.startDate + ' ' + (b.startTime || '00:00')));
+                } else if (targetArea === 'tasks') {
+                    updates.forEach(upd => {
+                        const index = state.preTripTasks.findIndex(t => String(t.id) === String(upd.id));
+                        if (index > -1) {
+                            state.preTripTasks[index] = { ...state.preTripTasks[index], ...upd.fields };
+                        }
+                    });
+                } else if (targetArea === 'packing') {
+                    updates.forEach(upd => {
+                        const catIndex = state.packingList.findIndex(c => String(c.id) === String(upd.id));
+                        if (catIndex > -1) {
+                            const cat = state.packingList[catIndex];
+                            if (upd.newItems) {
+                                upd.newItems.forEach(ni => {
+                                    if (!cat.items.find(i => i.text.toLowerCase() === ni.toLowerCase())) {
+                                        cat.items.push({ id: `ai-pack-${Date.now()}-${Math.random()}`, text: ni, done: false });
+                                    }
+                                });
+                            }
+                            if (upd.removeItems) {
+                                cat.items = cat.items.filter(i => !upd.removeItems.includes(String(i.id)) && !upd.removeItems.includes(i.text.toLowerCase()));
+                            }
+                        }
+                    });
+                }
+            }
+
+            // Handle Deletes
+            if (deletes.length > 0) {
+                if (targetArea === 'itinerary') {
+                    const idsToDelete = deletes.map(String);
+                    state.itinerary = state.itinerary.filter(i => !idsToDelete.includes(String(i.id)));
+                } else if (targetArea === 'tasks') {
+                    const idsToDelete = deletes.map(String);
+                    state.preTripTasks = state.preTripTasks.filter(t => !idsToDelete.includes(String(t.id)));
+                } else if (targetArea === 'packing') {
+                    const idsToDelete = deletes.map(String);
+                    // Filter categories by ID
+                    state.packingList = state.packingList.filter(c => !idsToDelete.includes(String(c.id)));
+                    // Also filter items inside all remaining categories by ID
+                    state.packingList.forEach(category => {
+                        category.items = category.items.filter(item => !idsToDelete.includes(String(item.id)));
+                    });
+                }
+            }
+
+            // Handle Phrasebook (Legacy/Direct)
             if (data.phrasebook) {
                 state.phrasebook = data.phrasebook;
             }
@@ -395,7 +404,7 @@ export const {
     setCustomPrompt, updateTripDetails, setPreTripTasks,
     setItinerary, setExpenses, setPackingList, setPhrasebook,
     loadFullTrip, setLanguage, setExchangeRates, updateExchangeRate,
-    applyProposedChanges, discardProposedChanges
+    applyProposedChanges, discardProposedChanges, toggleProposedChange
 } = tripSlice.actions;
 
 export default tripSlice.reducer;

@@ -16,11 +16,12 @@
     *   **[NEW]** Trip Reporting Currency: Change the primary currency used for totals and conversions.
 *   **Itinerary Management**:
     *   Add events (Flights, Activities, Hotels) with date, duration, and flexible timezones.
+    *   **[NEW]** **Automatic Timezone Detection**: Automatically fetches the correct timezone based on coordinates using `timeapi.io`.
     *   **[NEW]** **Duration-based Events**: Specify duration in hours/minutes; end times are calculated automatically.
-    *   **[NEW]** **Timezone Support**: Set both start and destination timezones for travel events (flights, trains).
+    *   **[NEW]** **Enhanced Display**: Itinerary cards show explicit start/end dates and times with `+N day` indicators for overnight travel.
+    *   **[NEW]** **Timezone Shifts**: Clearly displays destination timezones if they differ from the starting point.
     *   **[NEW]** **Anchored Sticky Headers**: Day headers stay perfectly docked under the navigation bar as you scroll.
     *   **[NEW]** Support for **Overnight Activities** (Start Date != End Date).
-    *   **[NEW]** Time range support (Start Time - End Time) with validation.
     *   Automatic sorting of events by date and time in a beautiful timeline view.
     *   Google Maps route link generation.
 *   **AI Integration 🤖**:
@@ -48,7 +49,8 @@
 
 *   **Interactive Map 🗺️**:
     *   **[NEW] Date Navigation**: Filter markers by specific days using `<` and `>` controls or view the "Whole Trip".
-    *   Visualize your itinerary with an interactive map (Leaflet) with auto-coordinates from AI.
+    *   Visualize your itinerary with an interactive map (Leaflet).
+    *   **[NEW]** **Photon API Integration**: High-reliability geocoding powered by Photon (OpenStreetMap data), bypassing standard CORS/blocking issues.
 *   **PWA Support 📲**:
     *   **[NEW] Manual Updates**: A notification and "Update" button in settings appear when a new version is available.
     *   Installable as a desktop or mobile application for offline access.
@@ -63,6 +65,7 @@
 *   **[x] AI Review System**: Allow users to preview and vet AI suggestions.
 *   **[x] PWA Support**: Convert to Progressive Web App with update controls.
 *   **[x] Interactive Map**: Full Leaflet integration with date-based filtering.
+*   **[x] Automatic Timezones**: Coordinate-based timezone detection.
 *   **[ ] Calendar Export**: Export itinerary to **.ics** format for Google Calendar.
 *   **[ ] Multi-Trip Management**: Allow users to create, save, and switch between multiple trips locally.
 *   **[ ] Cloud Sync**: User authentication and database storage for accessing trips across devices.

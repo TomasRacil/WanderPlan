@@ -1,17 +1,19 @@
-export const generateTripContent = async (apiKey, tripDetails, customPrompt, itinerary, preTripTasks, language = 'en', targetArea = 'all', aiMode = 'add') => {
-    // Serialization logic from original file
-    const existingItinerary = itinerary.map(i =>
-        `- [ID: ${i.id}] ${i.startDate || i.date} ${i.startTime}-${i.endTime} (End: ${i.endDate || i.startDate || i.date}): ${i.title} [Type: ${i.type}] [Category: ${i.category}] [Cost: ${i.cost} ${i.currency}] @ ${i.location || 'No Loc'}`
+export const generateTripContent = async (apiKey, tripDetails, customPrompt, itinerary, preTripTasks, packingList, language = 'en', targetArea = 'all', aiMode = 'add') => {
+    const existingItinerary = (itinerary || []).map(i =>
+        `{"id": "${i.id}", "title": "${i.title}", "date": "${i.startDate}", "time": "${i.startTime}", "duration": ${i.duration || 60}, "type": "${i.type}", "category": "${i.category}", "cost": ${i.cost || 0}, "currency": "${i.currency}", "location": "${i.location}"}`
     ).join('\n');
 
-    const existingTasks = preTripTasks.map(t =>
-        `- ${t.text} [Status: ${t.done ? 'Done' : 'Pending'}] [Cost: ${t.cost} ${t.currency}]`
+    const existingTasks = (preTripTasks || []).map(t =>
+        `{"id": "${t.id}", "text": "${t.text}", "status": "${t.done ? 'Done' : 'Pending'}", "cost": ${t.cost || 0}, "currency": "${t.currency}", "category": "${t.category}"}`
     ).join('\n');
+
+    const existingPacking = JSON.stringify((packingList || []).map(cat => ({
+        id: cat.id,
+        category: cat.category,
+        items: (cat.items || []).map(i => ({ id: i.id, text: i.text }))
+    })));
 
     const budgetStatus = `Budget: ${tripDetails.budget} ${tripDetails.homeCurrency}.`;
-
-    let goalPrompt = '';
-    let responseFormat = '';
 
     const context = `
         Current Trip: ${tripDetails.destination} (${tripDetails.startDate} to ${tripDetails.endDate})
@@ -20,57 +22,50 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
         Travelers: ${tripDetails.travelers || 1}
         Preferred Language for Response: ${language}
         
-        Current Itinerary: ${JSON.stringify(itinerary.map(e => ({ title: e.title, date: e.startDate, time: e.startTime, type: e.type, notes: e.notes })))}
-        Current Pre-Trip Tasks: ${JSON.stringify(preTripTasks.map(t => ({ text: t.text, category: t.category, dueDate: t.dueDate, notes: t.notes })))}
+        CRITICAL: All existing items have unique IDs. Use these IDs to refer to items for updates or deletions.
+        Existing Itinerary (JSON): ${existingItinerary}
+        Existing Tasks (JSON): ${existingTasks}
+        Existing Packing (JSON): ${existingPacking}
     `;
 
-    const modeInstructions = {
-        add: "Focus on suggesting NEW items that are highly relevant but not yet in the list.",
-        update: "STRICTLY focus on ENHANCING existing items in the provided list. Add missing details like notes, costs, specific times, or categories. Do not suggest unrelated new items.",
-        fill: "Look for gaps in the plan (e.g., missing meals, hotel check-ins, or gaps between activities) and suggest items to fill those specific voids.",
-        dedupe: "Analyze the current list. Identify and REMOVE duplicate items (both exact matches and semantic duplicates). Return the CLEANED, unique list of items."
+    const instructions = {
+        add: "Focus ONLY on suggesting NEW items that are not in the list. Allowed keys: 'adds'.",
+        update: "Focus ONLY on UPDATING existing items. Used their 'id' to specify which item you are changing. Return ONLY the fields that changed. Allowed keys: 'updates'.",
+        fill: "Look for gaps and return NEW items or UPDATES to existing placeholders to fill those gaps. Allowed keys: 'adds', 'updates'.",
+        dedupe: "Identify exact or semantic duplicates. Return ONLY a list of IDs to remove. Allowed keys: 'deletes'."
     };
 
+    let areaSpecificFormat = '';
     switch (targetArea) {
         case 'itinerary':
-            goalPrompt = `
-                Generate itinerary events for the trip.
-                - MODE: ${aiMode}. ${modeInstructions[aiMode]}
-                - For each event return: "title", "startDate" (YYYY-MM-DD), "startTime" (HH:mm), "duration" (minutes), "type", "estimatedCost", "currency", "location", "endLocation", "timeZone" (e.g. "Europe/Prague") and "notes".
-                - RETURN ONLY the "newItinerary" field.
+            areaSpecificFormat = `
+                "adds": [{"title": "...", "startDate": "YYYY-MM-DD", "startTime": "HH:mm", "duration": 60, "type": "Activity", "estimatedCost": 0, "currency": "CODE", "location": "...", "endLocation": "...", "timeZone": "...", "notes": "..."}],
+                "updates": [{"id": "...", "fields": {"title": "...", "notes": "..."}}],
+                "deletes": ["id1", "id2"]
             `;
-            responseFormat = `"newItinerary": [{"title": "...", "startDate": "YYYY-MM-DD", "startTime": "HH:mm", "duration": 60, "type": "Activity", "estimatedCost": 0, "currency": "CODE", "location": "...", "endLocation": "...", "timeZone": "...", "notes": "..."}]`;
             break;
         case 'tasks':
-            goalPrompt = `
-                Suggest pre-trip tasks.
-                - MODE: ${aiMode}. ${modeInstructions[aiMode]}
-                - For each task return: "text", "cost", "currency", "category", "dueDate" (YYYY-MM-DD), "notes", and "timeToComplete" (e.g., "30 mins").
-                - RETURN ONLY the "newPreTrip" and "tripCurrency" fields.
+            areaSpecificFormat = `
+                "adds": [{"text": "...", "cost": 0, "currency": "CODE", "category": "Category", "dueDate": "YYYY-MM-DD", "notes": "...", "timeToComplete": "..."}],
+                "updates": [{"id": "...", "fields": {"text": "...", "cost": 10}}],
+                "deletes": ["id1"]
             `;
-            responseFormat = `"newPreTrip": [{"text": "...", "cost": 0, "currency": "CODE", "category": "Category", "dueDate": "YYYY-MM-DD", "notes": "...", "timeToComplete": "..."}], "tripCurrency": "CODE"`;
             break;
         case 'packing':
-            goalPrompt = `
-                Generate a smart packing list.
-                - MODE: ${aiMode}. ${modeInstructions[aiMode] || modeInstructions['add']}
-                - RETURN ONLY the "newPacking" field.
+            areaSpecificFormat = `
+                "adds": [{"category": "Electronics", "items": ["Item 1", "Item 2"]}],
+                "updates": [{"id": "categoryId", "newItems": ["Add this string"], "removeItems": ["Remove this Item ID"]}],
+                "deletes": ["categoryId", "itemId"]
             `;
-            responseFormat = `"newPacking": [{"category": "Electronics", "items": ["Item 1", "Item 2"]}]`;
             break;
         case 'phrasebook':
-            goalPrompt = `
-                Generate a useful phrasebook for the destination's local language.
-                - Include 10-15 essential phrases.
-                - For each phrase return: "original", "phonetic", "english".
-                - RETURN ONLY the "phrasebook" field.
-            `;
-            responseFormat = `"phrasebook": { "language": "Lang", "tips": "Tip", "phrases": [{"original":"x","phonetic":"y","english":"z"}] }`;
+            areaSpecificFormat = `"phrasebook": { "language": "Lang", "tips": "Tip", "phrases": [{"original":"x","phonetic":"y","english":"z"}] }`;
             break;
         default:
-            goalPrompt = `Plan a complete trip. Suggest itinerary, tasks, and packing items.`;
-            responseFormat = `"newItinerary": [...], "newPreTrip": [...], "newPacking": [...]`;
+            areaSpecificFormat = `"adds": [], "updates": [], "deletes": []`;
     }
+
+    const allowedKeys = aiMode === 'dedupe' ? "'deletes'" : aiMode === 'update' ? "'updates'" : "'adds', 'updates'";
 
     const prompt = `
         CONTEXT:
@@ -78,11 +73,14 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
 
         USER REQUEST: ${customPrompt || "No special requests."}
 
-        GOAL: ${goalPrompt}
+        GOAL: ${aiMode.toUpperCase()} mode. ${instructions[aiMode] || instructions.add}
+        Target Area: ${targetArea}. 
 
         STRICTOR FORMATTING:
-        - Return ONLY a JSON object. No markdown. No text before or after.
-        - Structure: { ${responseFormat} }
+        - Return ONLY a JSON object. No markdown.
+        - CRITICAL: Only use these keys: [${allowedKeys}].
+        - Do not suggest new items or updates if the mode is 'dedupe'.
+        - Structure: { ${areaSpecificFormat} }
     `;
 
     if (!apiKey) {

@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSelector } from 'react-redux';
 import { MapPin, Loader2 } from 'lucide-react';
 
 export const LocationAutocomplete = ({ value, onChange, onSelect, placeholder, className }) => {
+    const language = useSelector(state => state.trip.language || 'en');
     const [query, setQuery] = useState(value || '');
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -28,10 +30,15 @@ export const LocationAutocomplete = ({ value, onChange, onSelect, placeholder, c
 
             setLoading(true);
             try {
-                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
+                // Photon supported languages: en, de, fr (plus IT was removed, others might 400)
+                const photonLangs = ['en', 'de', 'fr'];
+                const searchLang = photonLangs.includes(language) ? language : 'en';
+
+                // Using Photon API (OSM-based) which is more browser-friendly than Nominatim
+                const response = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lang=${searchLang}`);
                 if (response.ok) {
                     const data = await response.json();
-                    setResults(data);
+                    setResults(data.features || []);
                 }
             } catch (error) {
                 console.error("Geocoding error:", error);
@@ -49,16 +56,51 @@ export const LocationAutocomplete = ({ value, onChange, onSelect, placeholder, c
         setIsOpen(true);
     };
 
-    const handleSelect = (item) => {
-        // Use full address to avoid truncation issues complained by user
-        const fullAddress = item.display_name;
+    const handleSelect = async (feature) => {
+        const { properties, geometry } = feature;
+        const [lng, lat] = geometry.coordinates;
+
+        // Construct a display name from Photon properties
+        const parts = [
+            properties.name,
+            properties.street,
+            properties.city || properties.town,
+            properties.state,
+            properties.country
+        ].filter(Boolean);
+        const fullAddress = parts.join(', ');
+
         setQuery(fullAddress);
+        setLoading(true);
+
+        let timeZone = '';
+        try {
+            // Fetch timezone from timeapi.io with a timeout
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), 3500);
+
+            const tzResponse = await fetch(`https://www.timeapi.io/api/TimeZone/coordinate?latitude=${lat}&longitude=${lng}`, {
+                signal: controller.signal
+            });
+            clearTimeout(id);
+
+            if (tzResponse.ok) {
+                const tzData = await tzResponse.json();
+                timeZone = tzData.timeZone;
+            }
+        } catch (error) {
+            console.error("Timezone fetch error:", error);
+            // If it times out or fails, we just proceed without it
+        }
+
+        setLoading(false);
         onChange(fullAddress);
         onSelect({
-            name: fullAddress, // Use full address as the name
+            name: properties.name || fullAddress,
             address: fullAddress,
-            lat: parseFloat(item.lat),
-            lng: parseFloat(item.lon)
+            lat,
+            lng,
+            timeZone
         });
         setIsOpen(false);
     };
@@ -83,18 +125,26 @@ export const LocationAutocomplete = ({ value, onChange, onSelect, placeholder, c
 
             {isOpen && results.length > 0 && (
                 <div className="absolute z-50 w-full mt-1 bg-white rounded-lg shadow-xl border border-slate-100 max-h-60 overflow-y-auto">
-                    {results.map((item) => (
-                        <button
-                            key={item.place_id}
-                            onClick={() => handleSelect(item)}
-                            className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm border-b border-slate-50 last:border-0 transition-colors"
-                        >
-                            <p className="font-bold text-slate-700 truncate">{item.display_name.split(',')[0]}</p>
-                            <p className="text-xs text-slate-500 truncate">{item.display_name}</p>
-                        </button>
-                    ))}
+                    {results.map((feature, idx) => {
+                        const { properties } = feature;
+                        const label = [properties.street, properties.city || properties.town, properties.state, properties.country].filter(Boolean).join(', ');
+                        return (
+                            <button
+                                key={idx}
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSelect(feature);
+                                }}
+                                className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm border-b border-slate-50 last:border-0 transition-colors"
+                            >
+                                <p className="font-bold text-slate-700 truncate">{properties.name}</p>
+                                <p className="text-xs text-slate-500 truncate">{label}</p>
+                            </button>
+                        );
+                    })}
                     <div className="px-2 py-1 bg-slate-50 text-[10px] text-slate-400 text-center">
-                        Search via OpenStreetMap
+                        Search via Photon (OpenStreetMap)
                     </div>
                 </div>
             )}

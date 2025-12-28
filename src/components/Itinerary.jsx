@@ -307,7 +307,7 @@ export const Itinerary = () => {
                                     {/* Events Line */}
                                     <div className="space-y-8 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
                                         {groupedItinerary[dateKey].map((item, idx) => {
-                                            const { endTime, tzLabel } = calculateEndTime(item.startDate || item.date, item.startTime || item.time, item.duration || 60, item.timeZone, item.destinationTimeZone);
+                                            const { endDate, endTime, tzLabel } = calculateEndTime(item.startDate || item.date, item.startTime || item.time, item.duration || 60, item.timeZone, item.destinationTimeZone);
 
                                             return (
                                                 <div key={item.id} className="relative flex items-start group">
@@ -381,12 +381,31 @@ export const Itinerary = () => {
                                                                             </div>
                                                                         </div>
                                                                         <div className="text-right">
-                                                                            <div className="text-sm font-bold text-indigo-600">
-                                                                                {item.startTime || item.time}
-                                                                                {endTime && <span className="text-slate-400 font-normal"> - {endTime} {tzLabel && <span className="text-[10px] uppercase text-indigo-400">({tzLabel.split('/').pop().replace(/_/g, ' ')})</span>}</span>}
-                                                                                {!tzLabel && item.timeZone && <div className="text-[10px] text-slate-400 font-normal mt-0.5">{item.timeZone.split('/').pop().replace('_', ' ')}</div>}
+                                                                            <div className="text-[11px] font-bold text-indigo-600 leading-tight">
+                                                                                <div className="flex flex-col items-end">
+                                                                                    <span>{new Date((item.startDate || item.date) + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} • {item.startTime || item.time}</span>
+                                                                                    {endTime && (
+                                                                                        <span className="text-slate-400 font-normal">
+                                                                                            to {endDate !== (item.startDate || item.date) && `${new Date(endDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} • `}
+                                                                                            {endTime}
+                                                                                            {endDate !== (item.startDate || item.date) && (
+                                                                                                <span className="ml-1 text-orange-500 font-bold">
+                                                                                                    +{Math.round((new Date(endDate + 'T00:00:00') - new Date((item.startDate || item.date) + 'T00:00:00')) / (1000 * 60 * 60 * 24))}d
+                                                                                                </span>
+                                                                                            )}
+                                                                                        </span>
+                                                                                    )}
+                                                                                    <div className="mt-1 flex flex-col items-end gap-0.5">
+                                                                                        {item.timeZone && <span className="text-[10px] text-slate-400 font-normal uppercase">{item.timeZone.split('/').pop().replace(/_/g, ' ')}</span>}
+                                                                                        {item.destinationTimeZone && item.destinationTimeZone !== item.timeZone && (
+                                                                                            <span className="text-[10px] text-indigo-400 font-normal uppercase flex items-center gap-1">
+                                                                                                → {item.destinationTimeZone.split('/').pop().replace(/_/g, ' ')}
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
                                                                             </div>
-                                                                            <button onClick={() => handleEditOpen(item)} className="text-xs text-slate-400 hover:text-indigo-600 flex items-center justify-end gap-1 mt-1 w-full">
+                                                                            <button onClick={() => handleEditOpen(item)} className="text-xs text-slate-400 hover:text-indigo-600 flex items-center justify-end gap-1 mt-2 w-full transition-colors">
                                                                                 <Edit2 size={12} /> {t.editEvent}
                                                                             </button>
                                                                         </div>
@@ -592,7 +611,17 @@ export const Itinerary = () => {
                             <LocationAutocomplete
                                 value={addForm.location}
                                 onChange={(val) => setAddForm(prev => ({ ...prev, location: val }))}
-                                onSelect={(item) => setAddForm(prev => ({ ...prev, location: item.name, coordinates: { lat: item.lat, lng: item.lng } }))}
+                                onSelect={(item) => setAddForm(prev => {
+                                    const newTz = item.timeZone || prev.timeZone;
+                                    return {
+                                        ...prev,
+                                        location: item.name,
+                                        coordinates: { lat: item.lat, lng: item.lng },
+                                        timeZone: newTz,
+                                        // Update destination TZ as well if they were in sync
+                                        destinationTimeZone: (prev.timeZone === prev.destinationTimeZone) ? newTz : prev.destinationTimeZone
+                                    };
+                                })}
                                 placeholder={t.startPlaceholder}
                                 className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
                             />
@@ -605,7 +634,12 @@ export const Itinerary = () => {
                             <LocationAutocomplete
                                 value={addForm.endLocation || ''}
                                 onChange={(val) => setAddForm(prev => ({ ...prev, endLocation: val }))}
-                                onSelect={(item) => setAddForm(prev => ({ ...prev, endLocation: item.name, endCoordinates: { lat: item.lat, lng: item.lng } }))}
+                                onSelect={(item) => setAddForm(prev => ({
+                                    ...prev,
+                                    endLocation: item.name,
+                                    endCoordinates: { lat: item.lat, lng: item.lng },
+                                    destinationTimeZone: item.timeZone || prev.destinationTimeZone
+                                }))}
                                 placeholder={t.endPlaceholder}
                                 className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
                             />

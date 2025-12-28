@@ -8,7 +8,9 @@ export const parseCost = (val) => parseFloat(String(val).replace(/[^0-9.-]+/g, "
 
 export const formatMoney = (amount, currencyCode) => {
     const symbol = ALL_CURRENCIES.find(c => c.code === currencyCode)?.symbol || currencyCode;
-    return `${symbol}${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    // Use fixed 2 decimal places and replace the default thousand separator with a space
+    const formatted = amount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$& ');
+    return `${symbol} ${formatted}`;
 };
 
 export const getEventIcon = (type) => {

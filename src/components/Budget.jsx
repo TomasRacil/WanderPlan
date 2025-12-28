@@ -124,15 +124,16 @@ export const Budget = () => {
                 ...i,
                 title: formData.get('title'),
                 cost: amount,
-                currency: expenseCurrency
-                // Category is currently inferred from type in some places, but we store it too
+                currency: expenseCurrency,
+                category: formData.get('category')
             } : i)));
         } else if (editingItem.source === 'task') {
             dispatch(setPreTripTasks(preTripTasks.map(t => t.id === editingItem.id ? {
                 ...t,
                 text: formData.get('title'),
                 cost: amount,
-                currency: expenseCurrency
+                currency: expenseCurrency,
+                category: formData.get('category')
             } : t)));
         }
 
@@ -279,7 +280,7 @@ export const Budget = () => {
                                         </div>
                                         <div className="flex items-center gap-4">
                                             <div className="text-right">
-                                                <div className={`font-bold ${item.isPaid ? 'text-slate-700' : 'text-slate-400'}`}>{item.currency} {item.amount.toFixed(2)}</div>
+                                                <div className={`font-bold ${item.isPaid ? 'text-slate-700' : 'text-slate-400'}`}>{formatMoney(item.amount, item.currency)}</div>
                                                 {item.currency !== tripDetails.homeCurrency && (
                                                     <div className="text-[10px] text-slate-400">
                                                         ~ {formatMoney(convertToHome(item.amount, item.currency, tripDetails, exchangeRates), tripDetails.homeCurrency)}
@@ -290,14 +291,14 @@ export const Budget = () => {
                                             <div className="flex items-center gap-2">
                                                 <button
                                                     onClick={() => openEditModal(item)}
-                                                    className="text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    className="text-slate-300 hover:text-indigo-600 opacity-40 group-hover:opacity-100 transition-opacity"
                                                 >
                                                     <Edit2 size={16} />
                                                 </button>
                                                 {item.source === 'expense' ? (
                                                     <button
                                                         onClick={() => deleteExpense(item.id)}
-                                                        className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        className="text-slate-300 hover:text-red-500 opacity-40 group-hover:opacity-100 transition-opacity"
                                                     >
                                                         <Trash2 size={16} />
                                                     </button>
@@ -385,18 +386,16 @@ export const Budget = () => {
                                 </select>
                             </div>
                         </div>
-                        {editingItem.source === 'expense' && (
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.category}</label>
-                                <select name="category" defaultValue={editingItem.category} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm">
-                                    {BUDGET_CATEGORIES.map(c => (
-                                        <option key={c} value={c}>
-                                            {t[`cat_${c.toLowerCase().replace(/ & /g, '_').replace(/ /g, '_')}`] || c}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.category}</label>
+                            <select name="category" defaultValue={editingItem.category} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                                {BUDGET_CATEGORIES.map(c => (
+                                    <option key={c} value={c}>
+                                        {t[`cat_${c.toLowerCase().replace(/ & /g, '_').replace(/ /g, '_')}`] || c}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
                         <div className="flex gap-2 pt-2">
                             <Button variant="secondary" onClick={() => { setIsEditModalOpen(false); setEditingItem(null); }} className="flex-1">{t.cancel}</Button>
                             <Button type="submit" className="flex-1" icon={CheckCircle}>{t.saveChanges}</Button>

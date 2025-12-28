@@ -31,16 +31,16 @@ export const Overview = ({ onSave, onLoad }) => {
 
   // Focus Item Logic: Find the single most urgent thing (Task or Event)
   const nextTask = [...preTripTasks].filter(t => !t.done).sort((a, b) => {
-    if (!a.dueDate) return 1;
-    if (!b.dueDate) return -1;
-    return new Date(a.dueDate) - new Date(b.dueDate);
+    if (!a.deadline) return 1;
+    if (!b.deadline) return -1;
+    return new Date(a.deadline) - new Date(b.deadline);
   })[0];
 
   const nextEvent = upcomingEvents[0];
 
   let focusItem = null;
   if (nextTask && nextEvent) {
-    const taskDate = new Date(nextTask.dueDate + 'T23:59:59'); // Assume end of day for tasks
+    const taskDate = new Date(nextTask.deadline + 'T23:59:59'); // Assume end of day for tasks
     const eventDate = new Date(nextEvent.startDate + ' ' + (nextEvent.startTime || '00:00'));
     focusItem = taskDate <= eventDate ? { ...nextTask, type: 'task' } : { ...nextEvent, type: 'event' };
   } else if (nextTask) {
@@ -52,9 +52,9 @@ export const Overview = ({ onSave, onLoad }) => {
   const pendingTasks = [...preTripTasks]
     .filter(t => !t.done)
     .sort((a, b) => {
-      if (!a.dueDate) return 1;
-      if (!b.dueDate) return -1;
-      return new Date(a.dueDate) - new Date(b.dueDate);
+      if (!a.deadline) return 1;
+      if (!b.deadline) return -1;
+      return new Date(a.deadline) - new Date(b.deadline);
     })
     .slice(0, 3);
 
@@ -133,7 +133,7 @@ export const Overview = ({ onSave, onLoad }) => {
                     <Calendar size={12} className="text-slate-400" />
                     <span className="font-medium">
                       {focusItem.type === 'task'
-                        ? (focusItem.dueDate ? new Date(focusItem.dueDate).toLocaleDateString() : 'No date')
+                        ? (focusItem.deadline ? new Date(focusItem.deadline).toLocaleDateString() : 'No date')
                         : `${new Date(focusItem.startDate).toLocaleDateString()} @ ${focusItem.startTime}`}
                     </span>
                   </div>
@@ -279,8 +279,8 @@ export const Overview = ({ onSave, onLoad }) => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-bold text-slate-800 truncate">{task.text}</div>
-                      {task.dueDate && (
-                        <div className="text-[10px] text-amber-600 font-medium">Due: {new Date(task.dueDate).toLocaleDateString()}</div>
+                      {task.deadline && (
+                        <div className="text-[10px] text-amber-600 font-medium">Due: {new Date(task.deadline).toLocaleDateString()}</div>
                       )}
                     </div>
                   </div>
