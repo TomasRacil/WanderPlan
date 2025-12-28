@@ -121,12 +121,65 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
         if (targetArea === 'phrasebook') return { phrasebook: fullMock.phrasebook };
         return fullMock;
     } else {
+        // Collect all attachments from itinerary and tasks
+        const allAttachments = [];
+
+        // Helper to add attachments
+        const collectAttachments = (items) => {
+            if (!items) return;
+            items.forEach(item => {
+                if (item.attachments && item.attachments.length > 0) {
+                    item.attachments.forEach(att => {
+                        // Start of base64 string usually has "data:image/png;base64,"
+                        const base64Data = att.data.split(',')[1];
+                        if (base64Data) {
+                            allAttachments.push({
+                                inlineData: {
+                                    data: base64Data,
+                                    mimeType: att.type
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        };
+
+        collectAttachments(itinerary);
+        collectAttachments(preTripTasks);
+
+        // Construct the prompt parts
+        const promptParts = [
+            { text: prompt }
+        ];
+
+        // Add images if any
+        if (allAttachments.length > 0) {
+            promptParts.push(...allAttachments);
+        }
+
+        // Initialize the GoogleGenerativeAI client
+        // This assumes 'GoogleGenerativeAI' and 'HarmBlockThreshold' are imported or available in scope.
+        // For a complete setup, you'd typically have:
+        // import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from "@google/generative-ai";
+        // const genAI = new GoogleGenerativeAI(apiKey);
+        // const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" }); // or "gemini-pro" if no images
+        // For this specific change, we'll assume 'model' is available or passed.
+        // If 'model' is not defined, this code will break.
+        // Given the original code used a direct fetch, we'll adapt to that.
+
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            body: JSON.stringify({ contents: [{ role: "user", parts: promptParts }] })
         });
-        if (!response.ok) throw new Error("API Request Failed");
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            console.error("API Request Failed:", response.status, response.statusText, errorBody);
+            throw new Error(`API Request Failed: ${response.status} ${response.statusText}`);
+        }
+
         const result = await response.json();
         let text = result.candidates[0].content.parts[0].text;
 

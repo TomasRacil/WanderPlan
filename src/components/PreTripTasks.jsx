@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { CheckSquare, Plus, Edit2, Trash2, CheckCircle, Link as LinkIcon, FileText, Sparkles } from 'lucide-react';
+import { Plus, CheckSquare, Trash2, CheckCircle, Sparkles, Paperclip, Link as LinkIcon, Download, Edit2, FileText } from 'lucide-react';
 import { BUDGET_CATEGORIES } from '../data/budgetConstants';
 import { SearchableSelect } from './SearchableSelect';
 import { ALL_CURRENCIES } from '../data/currencies';
 import { SectionTitle, Modal, Button, ConfirmModal } from './CommonUI';
 import { setPreTripTasks, updateTripDetails, generateTrip } from '../store/tripSlice';
+import { AttachmentManager } from './AttachmentManager';
+import { FilePreviewModal } from './FilePreviewModal';
 import { LOCALES } from '../i18n/locales';
 import { getBudgetCategory } from '../utils/helpers';
 
@@ -22,43 +24,50 @@ export const PreTripTasks = () => {
     const t = LOCALES[language || 'en'];
 
     const [modal, setModal] = useState({ isOpen: false, type: 'add', taskId: null });
-    const [formData, setFormData] = useState({
+    const [taskForm, setTaskForm] = useState({
         text: '',
-        dueDate: '',
+        deadline: '',
         cost: '',
         currency: tripDetails.lastUsedCurrency || tripDetails.homeCurrency || 'USD',
         category: 'Documents',
         isPaid: false,
         timeToComplete: '',
-        notes: ''
+        notes: '',
+        attachments: [],
+        links: []
     });
     const [localPrompt, setLocalPrompt] = useState('');
     const [aiMode, setAiMode] = useState('add');
     const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, id: null });
+    const [previewFile, setPreviewFile] = useState(null);
 
     const openModal = (type, task = null) => {
         if (type === 'edit' && task) {
-            setFormData({
+            setTaskForm({
                 text: task.text,
-                dueDate: task.dueDate || '',
+                deadline: task.deadline || '',
                 cost: task.cost || '',
                 currency: task.currency || tripDetails.homeCurrency,
                 category: task.category || 'Documents',
                 isPaid: task.isPaid || false,
                 timeToComplete: task.timeToComplete || '',
-                notes: task.notes || ''
+                notes: task.notes || '',
+                attachments: task.attachments || [],
+                links: task.links || []
             });
             setModal({ isOpen: true, type: 'edit', taskId: task.id });
         } else {
-            setFormData({
+            setTaskForm({
                 text: '',
-                dueDate: '',
+                deadline: '',
                 cost: '',
                 currency: tripDetails.lastUsedCurrency || tripDetails.homeCurrency || 'USD',
                 category: 'Documents',
                 isPaid: false,
                 timeToComplete: '',
-                notes: ''
+                notes: '',
+                attachments: [],
+                links: []
             });
             setModal({ isOpen: true, type: 'add', taskId: null });
         }
@@ -66,29 +75,30 @@ export const PreTripTasks = () => {
 
     const handleModalSubmit = (e) => {
         e.preventDefault();
-        if (!formData.text.trim()) return;
+        if (!taskForm.text.trim()) return;
 
-        const costValue = parseFloat(formData.cost) || 0;
+        const costValue = parseFloat(taskForm.cost) || 0;
 
         if (modal.type === 'add') {
             const newTask = {
                 id: Date.now(),
-                text: formData.text,
-                dueDate: formData.dueDate,
+                text: taskForm.text,
+                deadline: taskForm.deadline,
                 done: false,
-                attachments: [],
+                attachments: taskForm.attachments,
+                links: taskForm.links,
                 cost: costValue,
-                currency: formData.currency,
-                category: getBudgetCategory(null, formData.category),
-                isPaid: formData.isPaid,
-                timeToComplete: formData.timeToComplete,
-                notes: formData.notes
+                currency: taskForm.currency,
+                category: getBudgetCategory(null, taskForm.category),
+                isPaid: taskForm.isPaid,
+                timeToComplete: taskForm.timeToComplete,
+                notes: taskForm.notes
             };
             dispatch(setPreTripTasks([...preTripTasks, newTask]));
         } else {
             dispatch(setPreTripTasks(preTripTasks.map(t =>
                 t.id === modal.taskId
-                    ? { ...t, text: formData.text, dueDate: formData.dueDate, cost: costValue, currency: formData.currency, category: getBudgetCategory(null, formData.category), isPaid: formData.isPaid, timeToComplete: formData.timeToComplete, notes: formData.notes }
+                    ? { ...t, text: taskForm.text, deadline: taskForm.deadline, cost: costValue, currency: taskForm.currency, category: getBudgetCategory(null, taskForm.category), isPaid: taskForm.isPaid, timeToComplete: taskForm.timeToComplete, notes: taskForm.notes, attachments: taskForm.attachments, links: taskForm.links }
                     : t
             )));
         }
@@ -208,58 +218,77 @@ export const PreTripTasks = () => {
                                 </div>
 
                                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                                    {/* Category Badge */}
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
-                                        {task.category || 'General'}
-                                    </span>
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${task.done ? 'bg-slate-100 text-slate-500' : 'bg-indigo-100 text-indigo-700'} `}>
+                                                    {task.category || 'General'}
+                                                </span>
+                                                {task.cost > 0 && (
+                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${task.isPaid ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-600'} `}>
+                                                        {task.currency} {task.cost.toLocaleString()} {task.isPaid ? '(Paid)' : '(Est)'}
+                                                    </span>
+                                                )}
+                                                {task.deadline && (
+                                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${new Date(task.deadline) < new Date() && !task.done
+                                                        ? 'bg-red-50 text-red-600 border-red-100'
+                                                        : 'bg-indigo-50 text-indigo-600 border-indigo-100'
+                                                        } `}>
+                                                        <FileText size={10} />
+                                                        {new Date(task.deadline).toLocaleDateString()}
+                                                    </span>
+                                                )}
+                                                {task.timeToComplete && (
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-600 border border-amber-100">
+                                                        ⏱ {task.timeToComplete}
+                                                    </span>
+                                                )}
+                                            </div>
 
-                                    {/* Deadline Badge */}
-                                    {task.dueDate && (
-                                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${new Date(task.dueDate) < new Date() && !task.done
-                                            ? 'bg-red-50 text-red-600 border-red-100'
-                                            : 'bg-indigo-50 text-indigo-600 border-indigo-100'
-                                            }`}>
-                                            <FileText size={10} />
-                                            {new Date(task.dueDate).toLocaleDateString()}
-                                        </span>
-                                    )}
+                                            {task.notes && (
+                                                <p className="mt-3 text-sm text-slate-600 bg-slate-50 p-3 rounded-lg italic border-l-2 border-slate-200 whitespace-pre-wrap">
+                                                    {task.notes}
+                                                </p>
+                                            )}
 
-                                    {/* Time to Complete Badge */}
-                                    {task.timeToComplete && (
-                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-600 border border-amber-100">
-                                            ⏱ {task.timeToComplete}
-                                        </span>
-                                    )}
+                                            {/* Attachments & Links Preview */}
+                                            {(task.attachments?.length > 0 || task.links?.length > 0) && (
+                                                <div className="flex flex-wrap gap-2 mt-2 mb-2">
+                                                    {task.attachments?.map(a => (
+                                                        <button key={a.id} onClick={() => setPreviewFile(a)} className="inline-flex items-center gap-1 text-xs bg-slate-100 px-2 py-1 rounded text-slate-600 hover:text-indigo-600 border border-slate-200 transition-colors" title="Preview File">
+                                                            <Paperclip size={10} /> {a.name}
+                                                        </button>
+                                                    ))}
+                                                    {task.links?.map(l => (
+                                                        <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs bg-indigo-50 px-2 py-1 rounded text-indigo-600 hover:underline border border-indigo-100">
+                                                            <LinkIcon size={10} /> {l.label}
+                                                        </a>
+                                                    ))}
+                                                </div>
+                                            )}
 
-                                    {task.cost > 0 && (
-                                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${task.isPaid ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-600'}`}>
-                                            {task.currency} {task.cost.toLocaleString()} {task.isPaid ? '(Paid)' : '(Est)'}
-                                        </span>
-                                    )}
+                                            <div className="flex items-center gap-2 mt-3 text-xs text-slate-400">
+                                                {task.cost > 0 && (
+                                                    <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-50">
+                                                        <button
+                                                            onClick={() => {
+                                                                dispatch(setPreTripTasks(preTripTasks.map(t =>
+                                                                    t.id === task.id ? { ...t, isPaid: !t.isPaid } : t
+                                                                )));
+                                                            }}
+                                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${task.isPaid
+                                                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                                                : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                                                                } `}
+                                                        >
+                                                            <CheckCircle size={14} className={task.isPaid ? 'text-emerald-500' : 'text-slate-300'} />
+                                                            {task.isPaid ? t.paid : t.markPaid}
+                                                        </button>
+                                                    </div>)}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-
-                                {task.notes && (
-                                    <p className="mt-3 text-sm text-slate-600 bg-slate-50 p-3 rounded-lg italic border-l-2 border-slate-200 whitespace-pre-wrap">
-                                        {task.notes}
-                                    </p>
-                                )}
-                                {task.cost > 0 && (
-                                    <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-50">
-                                        <button
-                                            onClick={() => {
-                                                dispatch(setPreTripTasks(preTripTasks.map(t =>
-                                                    t.id === task.id ? { ...t, isPaid: !t.isPaid } : t
-                                                )));
-                                            }}
-                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${task.isPaid
-                                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                                : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
-                                                }`}
-                                        >
-                                            <CheckCircle size={14} className={task.isPaid ? 'text-emerald-500' : 'text-slate-300'} />
-                                            {task.isPaid ? t.paid : t.markPaid}
-                                        </button>
-                                    </div>)}
                             </div>
                         </div>
                     </div>
@@ -279,8 +308,8 @@ export const PreTripTasks = () => {
                                 autoFocus
                                 className="w-full p-2 bg-slate-50 border border-slate-200 border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                                 placeholder={t.taskPlaceholder}
-                                value={formData.text}
-                                onChange={(e) => setFormData({ ...formData, text: e.target.value })}
+                                value={taskForm.text}
+                                onChange={(e) => setTaskForm({ ...taskForm, text: e.target.value })}
                                 required
                             />
                         </div>
@@ -289,8 +318,8 @@ export const PreTripTasks = () => {
                             <input
                                 type="date"
                                 className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                                value={formData.dueDate}
-                                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                                value={taskForm.deadline}
+                                onChange={(e) => setTaskForm({ ...taskForm, deadline: e.target.value })}
                             />
                         </div>
                     </div>
@@ -299,13 +328,13 @@ export const PreTripTasks = () => {
                         <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.category}</label>
                             <select
-                                value={formData.category}
-                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                value={taskForm.category}
+                                onChange={(e) => setTaskForm({ ...taskForm, category: e.target.value })}
                                 className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
                             >
                                 {BUDGET_CATEGORIES.map(c => (
                                     <option key={c} value={c}>
-                                        {t[`cat_${c.toLowerCase().replace(/ & /g, '_').replace(/ /g, '_')}`] || c}
+                                        {t[`cat_${c.toLowerCase().replace(/ & /g, '_').replace(/ /g, '_')} `] || c}
                                     </option>
                                 ))}
                             </select>
@@ -315,8 +344,8 @@ export const PreTripTasks = () => {
                             <input
                                 className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                                 placeholder={t.timePlaceholder}
-                                value={formData.timeToComplete}
-                                onChange={(e) => setFormData({ ...formData, timeToComplete: e.target.value })}
+                                value={taskForm.timeToComplete}
+                                onChange={(e) => setTaskForm({ ...taskForm, timeToComplete: e.target.value })}
                             />
                         </div>
                     </div>
@@ -328,15 +357,15 @@ export const PreTripTasks = () => {
                                 type="number"
                                 className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm min-w-0 font-bold"
                                 placeholder="0"
-                                value={formData.cost}
-                                onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
+                                value={taskForm.cost}
+                                onChange={(e) => setTaskForm({ ...taskForm, cost: e.target.value })}
                             />
                             <div className="w-28 shrink-0">
                                 <select
-                                    value={formData.currency}
+                                    value={taskForm.currency}
                                     onChange={(e) => {
                                         const val = e.target.value;
-                                        setFormData({ ...formData, currency: val });
+                                        setTaskForm({ ...taskForm, currency: val });
                                         dispatch(updateTripDetails({ lastUsedCurrency: val }));
                                     }}
                                     className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -348,8 +377,8 @@ export const PreTripTasks = () => {
                                 <input
                                     type="checkbox"
                                     id="modal-paid"
-                                    checked={formData.isPaid}
-                                    onChange={(e) => setFormData({ ...formData, isPaid: e.target.checked })}
+                                    checked={taskForm.isPaid}
+                                    onChange={(e) => setTaskForm({ ...taskForm, isPaid: e.target.checked })}
                                     className="w-4 h-4 rounded text-indigo-600 mr-2"
                                 />
                                 <label htmlFor="modal-paid" className="text-[10px] font-bold text-slate-500 uppercase cursor-pointer select-none">
@@ -364,13 +393,25 @@ export const PreTripTasks = () => {
                         <textarea
                             className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm h-24 focus:ring-2 focus:ring-indigo-500 outline-none"
                             placeholder="Extra details, links, etc."
-                            value={formData.notes}
-                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                            value={taskForm.notes}
+                            onChange={(e) => setTaskForm({ ...taskForm, notes: e.target.value })}
+                            rows="2"
                         />
                     </div>
 
-                    <div className="flex gap-2 pt-2">
-                        <Button variant="secondary" onClick={() => setModal({ ...modal, isOpen: false })} className="flex-1">{t.cancel}</Button>
+                    {/* Attachments */}
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.attachments} & {t.links}</label>
+                        <AttachmentManager
+                            attachments={taskForm.attachments || []}
+                            links={taskForm.links || []}
+                            onUpdate={(data) => setTaskForm({ ...taskForm, ...data })}
+                            t={t}
+                        />
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2">
+                        <Button variant="secondary" onClick={() => setModal({ ...modal, isOpen: false })}>{t.cancel}</Button>
                         <Button type="submit" className="flex-1" icon={modal.type === 'add' ? Plus : CheckCircle}>{modal.type === 'add' ? t.addItem : t.saveChanges}</Button>
                     </div>
                 </form>
@@ -382,6 +423,11 @@ export const PreTripTasks = () => {
                 onConfirm={confirmDeleteTask}
                 title={confirmDelete.id === 'ALL' ? t.clearList : t.confirmDelete}
                 message={confirmDelete.id === 'ALL' ? t.confirmClear : "Are you sure you want to delete this task? This action cannot be undone."}
+            />
+
+            <FilePreviewModal
+                file={previewFile}
+                onClose={() => setPreviewFile(null)}
             />
         </div >
     );

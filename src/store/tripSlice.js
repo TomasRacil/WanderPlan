@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { generateTripContent } from '../services/gemini';
+import { get } from 'idb-keyval';
 
 export const generateTrip = createAsyncThunk(
     'trip/generate',
@@ -58,64 +59,58 @@ export const fetchExchangeRates = createAsyncThunk(
 );
 
 
-// Helper to load state from localStorage or use defaults
-const loadInitialState = () => {
-    const defaultState = {
-        activeTab: 'overview',
-        language: 'en',
-        showSettings: false,
-        apiKey: localStorage.getItem('wanderplan_api_key') || '',
-        loading: false,
-        customPrompt: '',
-        tripDetails: {
-            destination: '',
-            origin: '',
-            startDate: new Date().toISOString().split('T')[0],
-            endDate: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0],
-            travelStyle: 'Balanced',
-            budget: '2000',
-            homeCurrency: 'USD',
-            tripCurrency: 'USD',
-            exchangeRate: 1,
-            coverImage: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1200&q=80',
-            lastUsedCurrency: 'USD',
-            travelers: 1
-        },
-        expenses: [],
-        itinerary: [],
-        preTripTasks: [
-            { id: 1, text: 'Check passport validity', done: false, cost: 0, currency: 'USD', category: 'Documents', isPaid: false },
-            { id: 2, text: 'Book flights', done: false, cost: 0, currency: 'USD', category: 'Transport', isPaid: false }
-        ],
-        packingList: [],
-        phrasebook: null,
-        exchangeRates: {}
-    };
+// Helper to get default state
+const getDefaultState = () => ({
+    activeTab: 'overview',
+    language: 'en',
+    showSettings: false,
+    apiKey: localStorage.getItem('wanderplan_api_key') || '', // API Key can stay in localStorage for now as it is small/global
+    loading: false,
+    isInitialized: false,
+    customPrompt: '',
+    tripDetails: {
+        destination: '',
+        origin: '',
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0],
+        travelStyle: 'Balanced',
+        budget: '2000',
+        homeCurrency: 'USD',
+        tripCurrency: 'USD',
+        exchangeRate: 1,
+        coverImage: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1200&q=80',
+        lastUsedCurrency: 'USD',
+        travelers: 1
+    },
+    expenses: [],
+    itinerary: [],
+    preTripTasks: [
+        { id: 1, text: 'Check passport validity', done: false, cost: 0, currency: 'USD', category: 'Documents', isPaid: false, attachments: [] },
+        { id: 2, text: 'Book flights', done: false, cost: 0, currency: 'USD', category: 'Transport', isPaid: false, attachments: [] }
+    ],
+    packingList: [],
+    phrasebook: null,
+    exchangeRates: {}
+});
 
-    try {
-        const saved = localStorage.getItem('wanderplan_current_trip');
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            return {
-                ...defaultState,
-                ...parsed,
-                tripDetails: { ...defaultState.tripDetails, ...(parsed.tripDetails || {}) },
-                preTripTasks: parsed.preTripTasks || defaultState.preTripTasks,
-                itinerary: parsed.itinerary || defaultState.itinerary,
-                expenses: parsed.expenses || defaultState.expenses,
-                packingList: parsed.packingList || defaultState.packingList,
-                phrasebook: parsed.phrasebook || defaultState.phrasebook,
-                language: parsed.language || defaultState.language,
-                exchangeRates: parsed.exchangeRates || defaultState.exchangeRates
-            };
+const initialState = getDefaultState();
+
+// Async thunk to load state from IndexedDB
+export const initializeTrip = createAsyncThunk(
+    'trip/initialize',
+    async (_, { rejectWithValue }) => {
+        try {
+            const saved = await get('wanderplan_current_trip');
+            if (saved) {
+                return saved;
+            }
+            return null;
+        } catch (error) {
+            console.error("Failed to load from IDB", error);
+            return rejectWithValue(error.message);
         }
-    } catch (e) {
-        console.error("Failed to load initial state", e);
     }
-    return defaultState;
-};
-
-const initialState = loadInitialState();
+);
 
 export const tripSlice = createSlice({
     name: 'trip',
@@ -164,6 +159,7 @@ export const tripSlice = createSlice({
             if (data.expenses) state.expenses = data.expenses;
             if (data.packingList) state.packingList = data.packingList;
             if (data.phrasebook) state.phrasebook = data.phrasebook;
+            if (data.language) state.language = data.language;
             if (data.exchangeRates) state.exchangeRates = data.exchangeRates;
         },
         setExchangeRates: (state, action) => {
@@ -352,11 +348,30 @@ export const tripSlice = createSlice({
                         refreshedRates[curr] = state.exchangeRates[curr];
                     }
                 });
-                state.exchangeRates = refreshedRates;
             })
             .addCase(fetchPairRate.fulfilled, (state, action) => {
                 const { currency, rate } = action.payload;
                 state.exchangeRates = { ...(state.exchangeRates || {}), [currency]: rate };
+            })
+            .addCase(initializeTrip.fulfilled, (state, action) => {
+                if (action.payload) {
+                    const data = action.payload;
+                    // Merge saved data with defaults to ensure new fields (like attachments) exist
+                    const defaultSt = getDefaultState();
+
+                    if (data.tripDetails) state.tripDetails = { ...defaultSt.tripDetails, ...data.tripDetails };
+                    if (data.preTripTasks) state.preTripTasks = data.preTripTasks;
+                    if (data.itinerary) state.itinerary = data.itinerary;
+                    if (data.expenses) state.expenses = data.expenses;
+                    if (data.packingList) state.packingList = data.packingList;
+                    if (data.phrasebook) state.phrasebook = data.phrasebook;
+                    if (data.language) state.language = data.language;
+                    if (data.exchangeRates) state.exchangeRates = data.exchangeRates;
+                }
+                state.isInitialized = true;
+            })
+            .addCase(initializeTrip.rejected, (state) => {
+                state.isInitialized = true;
             });
     }
 });

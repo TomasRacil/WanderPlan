@@ -4,7 +4,16 @@ import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import tripReducer from './store/tripSlice';
 import App from './App';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// Mock idb-keyval to prevent "indexedDB is not defined" error
+vi.mock('idb-keyval', () => ({
+    get: vi.fn(() => Promise.resolve(null)),
+    set: vi.fn(() => Promise.resolve()),
+    del: vi.fn(() => Promise.resolve()),
+    clear: vi.fn(() => Promise.resolve()),
+    keys: vi.fn(() => Promise.resolve([])),
+}));
 
 // Mock store for testing
 const createTestStore = () => configureStore({
@@ -22,6 +31,6 @@ describe('App Integration', () => {
         );
 
         expect(screen.getByText(/WanderPlan/i)).toBeInTheDocument();
-        expect(screen.getByText(/Plan My Trip/i)).toBeInTheDocument();
+        expect(screen.getByText(/Trip Settings/i)).toBeInTheDocument();
     });
 });

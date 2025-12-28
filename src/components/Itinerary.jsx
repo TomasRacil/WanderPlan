@@ -1,16 +1,8 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Calendar, MapPin, Map as MapIcon, Edit2, Save as SaveIcon, Trash2, CheckCircle, Plus, Sparkles } from 'lucide-react';
+import { Calendar, MapPin, Map as MapIcon, Edit2, Save as SaveIcon, Trash2, CheckCircle, Plus, Sparkles, Paperclip, Link as LinkIcon } from 'lucide-react';
 import { BUDGET_CATEGORIES } from '../data/budgetConstants';
 import { EVENT_TYPES, TYPE_TO_CATEGORY } from '../data/eventConstants';
-
-// ... (existing imports)
-
-// ... (inside component)
-// Infer category from type
-const getCategory = (type) => {
-    return TYPE_TO_CATEGORY[type] || 'Activities';
-};
 import { SectionTitle, Card, Button, Modal, ConfirmModal } from './CommonUI';
 import { setItinerary, updateTripDetails, generateTrip } from '../store/tripSlice';
 import { getEventIcon, getEventColor, generateGoogleMapsLink, parseCost, getBudgetCategory } from '../utils/helpers';
@@ -18,6 +10,15 @@ import { SearchableSelect } from './SearchableSelect';
 import { ALL_CURRENCIES } from '../data/currencies';
 import { LOCALES } from '../i18n/locales';
 import { LocationAutocomplete } from './LocationAutocomplete';
+import { AttachmentManager } from './AttachmentManager';
+import { FilePreviewModal } from './FilePreviewModal';
+
+// ... (existing imports)
+
+// Infer category from type
+const getCategory = (type) => {
+    return TYPE_TO_CATEGORY[type] || 'Activities';
+};
 
 export const Itinerary = () => {
     const dispatch = useDispatch();
@@ -37,9 +38,12 @@ export const Itinerary = () => {
     const [editMode, setEditMode] = useState(false); // New state to track if we are adding or editing
     const [formError, setFormError] = useState('');
     const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, id: null });
+    const [previewFile, setPreviewFile] = useState(null);
     const [addForm, setAddForm] = useState({
         id: null, // Track ID for editing
-        title: '', type: 'Activity', startDateTime: '', endDateTime: '', location: '', coordinates: null, endLocation: '', endCoordinates: null, notes: '', cost: '', currency: tripDetails.lastUsedCurrency || 'USD', isPaid: false
+        title: '', type: 'Activity', startDateTime: '', endDateTime: '', location: '', coordinates: null, endLocation: '', endCoordinates: null, notes: '', cost: '', currency: tripDetails.lastUsedCurrency || 'USD', isPaid: false,
+        attachments: [],
+        links: []
     });
 
     const handleAddOpen = () => {
@@ -71,7 +75,9 @@ export const Itinerary = () => {
             id: null,
             title: '', type: 'Activity',
             startDateTime: defaultStart, endDateTime: '',
-            location: '', coordinates: null, endLocation: '', endCoordinates: null, notes: '', cost: '', currency: tripDetails.lastUsedCurrency || 'USD', isPaid: false
+            location: '', coordinates: null, endLocation: '', endCoordinates: null, notes: '', cost: '', currency: tripDetails.lastUsedCurrency || 'USD', isPaid: false,
+            attachments: [],
+            links: []
         });
         setEditMode(false);
         setFormError('');
@@ -92,7 +98,9 @@ export const Itinerary = () => {
             notes: item.notes,
             cost: item.cost,
             currency: item.currency,
-            isPaid: item.isPaid
+            isPaid: item.isPaid,
+            attachments: item.attachments || [],
+            links: item.links || []
         });
         setEditMode(true);
         setFormError('');
@@ -133,7 +141,9 @@ export const Itinerary = () => {
             cost: parseCost(addForm.cost),
             currency: addForm.currency,
             isPaid: addForm.isPaid,
-            isEditing: false
+            isEditing: false,
+            attachments: addForm.attachments,
+            links: addForm.links
         };
 
         if (editMode) {
@@ -300,7 +310,7 @@ export const Itinerary = () => {
                                                                 <div className="flex justify-between items-start">
                                                                     <div>
                                                                         <h4 className="font-bold text-lg text-slate-800">{item.title}</h4>
-                                                                        <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase mt-1">
+                                                                        <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-400 uppercase mt-1">
                                                                             <span>{item.type || 'Activity'}</span>
                                                                             {item.cost > 0 && (
                                                                                 <span className={`px-2 py-0.5 rounded-full ${item.isPaid ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
@@ -346,6 +356,22 @@ export const Itinerary = () => {
                                                                     >
                                                                         <MapIcon size={12} /> View Route
                                                                     </a>
+                                                                )}
+
+                                                                {/* Attachments & Links Preview */}
+                                                                {(item.attachments?.length > 0 || item.links?.length > 0) && (
+                                                                    <div className="flex flex-wrap gap-2 mt-2 mb-2">
+                                                                        {item.attachments?.map(a => (
+                                                                            <button key={a.id} onClick={() => setPreviewFile(a)} className="inline-flex items-center gap-1 text-xs bg-slate-100 px-2 py-1 rounded text-slate-600 hover:text-indigo-600 border border-slate-200 transition-colors" title="Preview File">
+                                                                                <Paperclip size={10} /> {a.name}
+                                                                            </button>
+                                                                        ))}
+                                                                        {item.links?.map(l => (
+                                                                            <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs bg-indigo-50 px-2 py-1 rounded text-indigo-600 hover:underline border border-indigo-100">
+                                                                                <LinkIcon size={10} /> {l.label}
+                                                                            </a>
+                                                                        ))}
+                                                                    </div>
                                                                 )}
 
                                                                 {item.notes && (
@@ -491,6 +517,17 @@ export const Itinerary = () => {
                             className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm h-24 focus:ring-2 focus:ring-indigo-500 outline-none"
                         />
                     </div>
+                    {/* Attachments */}
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.attachments} & {t.links}</label>
+                        <AttachmentManager
+                            attachments={addForm.attachments || []}
+                            links={addForm.links || []}
+                            onUpdate={(data) => setAddForm({ ...addForm, ...data })}
+                            t={t}
+                        />
+                    </div>
+
                     <div className="flex gap-2 pt-2">
                         <Button variant="secondary" onClick={() => setIsAddModalOpen(false)} className="flex-1">{t.cancel}</Button>
                         <Button type="submit" className="flex-1" icon={editMode ? SaveIcon : Plus}>{editMode ? t.saveChanges : t.addToItinerary}</Button>
@@ -504,6 +541,11 @@ export const Itinerary = () => {
                 onConfirm={handleConfirmDelete}
                 title={t.confirmDelete || 'Delete Event'}
                 message={t.confirmDeleteMsg || 'Are you sure you want to delete this event? This action cannot be undone.'}
+            />
+
+            <FilePreviewModal
+                file={previewFile}
+                onClose={() => setPreviewFile(null)}
             />
         </div>
     );

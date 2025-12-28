@@ -146,7 +146,14 @@ export const LOCALES = {
         updateApi: "Update from API",
         updating: "Updating...",
         managedRates: "Managed Rates",
-        confirmDeleteMsg: "Are you sure you want to delete this? This action cannot be undone."
+        managedRates: "Managed Rates",
+        confirmDeleteMsg: "Are you sure you want to delete this? This action cannot be undone.",
+        attachments: "Attachments",
+        links: "Links",
+        fileTooLarge: "File too large (Max 5MB)",
+        addLink: "Add Link",
+        clickToUpload: "Click to upload",
+        dropFiles: "or drag and drop"
     },
     cs: {
         planMyTrip: "Naplánovat cestu",
@@ -295,6 +302,13 @@ export const LOCALES = {
         updateApi: "Aktualizovat z API",
         updating: "Aktualizuji...",
         managedRates: "Spravované kurzy",
-        confirmDeleteMsg: "Opravdu to chcete smazat? Tuto akci nelze vrátit zpět."
+        managedRates: "Spravované kurzy",
+        confirmDeleteMsg: "Opravdu to chcete smazat? Tuto akci nelze vrátit zpět.",
+        attachments: "Přílohy",
+        links: "Odkazy",
+        fileTooLarge: "Soubor je příliš velký (Max 5MB)",
+        addLink: "Přidat odkaz",
+        clickToUpload: "Klikněte pro nahrání",
+        dropFiles: "nebo přetáhněte soubory"
     }
 };

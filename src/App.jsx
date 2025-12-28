@@ -6,8 +6,10 @@ import {
 
 import { COLORS } from './data/uiConstants';
 import {
-  setActiveTab, setShowSettings, loadFullTrip, setApiKey, generateTrip, setLanguage
+  setActiveTab, setShowSettings, loadFullTrip, setApiKey, generateTrip, setLanguage, initializeTrip
 } from './store/tripSlice';
+import { set } from 'idb-keyval';
+import JSZip from 'jszip';
 import { Overview } from './components/Overview';
 import { PreTripTasks } from './components/PreTripTasks';
 import { PackingList } from './components/PackingList';
@@ -19,7 +21,7 @@ import { Button } from './components/CommonUI';
 
 function WanderPlanContent() {
   const dispatch = useDispatch();
-  const { tripDetails, expenses, itinerary, preTripTasks, apiKey, customPrompt, packingList, phrasebook, exchangeRates } = useSelector(state => state.trip);
+  const { tripDetails, expenses, itinerary, preTripTasks, apiKey, customPrompt, packingList, phrasebook, exchangeRates, isInitialized } = useSelector(state => state.trip);
   const activeTab = useSelector(state => state.trip.activeTab);
   const showSettings = useSelector(state => state.trip.showSettings);
   const loading = useSelector(state => state.trip.loading);
@@ -28,38 +30,83 @@ function WanderPlanContent() {
 
   // Auto-save to localStorage on change (Initial load handled in tripSlice)
 
-  // Auto-save to localStorage on change
+  // Auto-save to IndexedDB on change
   React.useEffect(() => {
+    if (!isInitialized) return;
     const tripData = { tripDetails, preTripTasks, itinerary, expenses, packingList, phrasebook, exchangeRates, language };
-    localStorage.setItem('wanderplan_current_trip', JSON.stringify(tripData));
-  }, [tripDetails, preTripTasks, itinerary, expenses, packingList, phrasebook, exchangeRates, language]);
+    set('wanderplan_current_trip', tripData).catch(err => console.error('Auto-save failed', err));
+  }, [tripDetails, preTripTasks, itinerary, expenses, packingList, phrasebook, exchangeRates, language, isInitialized]);
 
-  const handleSaveTrip = () => {
-    const tripData = { version: 4, timestamp: new Date().toISOString(), tripDetails, preTripTasks, itinerary, expenses };
-    const blob = new Blob([JSON.stringify(tripData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `wanderplan-${tripDetails.destination || 'trip'}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  React.useEffect(() => {
+    dispatch(initializeTrip());
+  }, [dispatch]);
+
+  const handleSaveTrip = async () => {
+    const tripData = {
+      version: 5,
+      timestamp: new Date().toISOString(),
+      tripDetails,
+      preTripTasks,
+      itinerary,
+      expenses,
+      packingList,
+      phrasebook,
+      exchangeRates,
+      language
+    };
+
+    try {
+      const zip = new JSZip();
+      zip.file("trip_data.json", JSON.stringify(tripData, null, 2));
+
+      const content = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(content);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `wanderplan-${tripDetails.destination || 'trip'}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Failed to zip trip", error);
+      alert("Failed to create backup archive.");
+    }
   };
 
-  const handleLoadTrip = (e) => {
+  const handleLoadTrip = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        dispatch(loadFullTrip(JSON.parse(event.target.result)));
-        alert("Trip loaded successfully!");
-      } catch (error) {
-        alert("Failed to load trip file.");
+
+    try {
+      if (file.name.endsWith('.zip')) {
+        const zip = new JSZip();
+        const unzipped = await zip.loadAsync(file);
+        const jsonFile = unzipped.file("trip_data.json");
+        if (jsonFile) {
+          const content = await jsonFile.async("string");
+          dispatch(loadFullTrip(JSON.parse(content)));
+          alert("Trip archive loaded successfully!");
+        } else {
+          alert("Invalid archive: trip_data.json not found.");
+        }
+      } else {
+        // Fallback for legacy JSON support
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            dispatch(loadFullTrip(JSON.parse(event.target.result)));
+            alert("Trip loaded successfully!");
+          } catch (error) {
+            alert("Failed to load trip file.");
+          }
+        };
+        reader.readAsText(file);
       }
-    };
-    reader.readAsText(file);
+    } catch (error) {
+      console.error("Failed to load archive", error);
+      alert("Failed to load trip archive.");
+    }
     e.target.value = '';
   };
 
