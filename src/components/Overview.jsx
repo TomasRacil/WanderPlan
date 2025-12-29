@@ -316,7 +316,7 @@ export const Overview = ({ onSave, onLoad }) => {
             </h4>
             <div className="flex gap-2">
               <Button onClick={onSave} variant="secondary" className="flex-1 text-xs h-9" icon={Download}>{t.download}</Button>
-              <Button component="label" variant="secondary" className="flex-1 text-xs h-9" icon={Upload}>{t.upload}<input type="file" accept=".json" onChange={onLoad} className="hidden" /></Button>
+              <Button component="label" variant="secondary" className="flex-1 text-xs h-9" icon={Upload}>{t.upload}<input type="file" accept=".json, .zip" onChange={onLoad} className="hidden" /></Button>
             </div>
           </Card>
 

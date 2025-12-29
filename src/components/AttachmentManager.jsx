@@ -22,7 +22,7 @@ export const AttachmentManager = ({ attachments = [], links = [], onUpdate, t })
         reader.onloadend = () => {
             const base64 = reader.result;
             const newAttachment = {
-                id: Date.now().toString(),
+                id: (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString(36).substr(2, 9)),
                 name: file.name,
                 type: file.type,
                 data: base64
@@ -49,7 +49,7 @@ export const AttachmentManager = ({ attachments = [], links = [], onUpdate, t })
         }
 
         const newLink = {
-            id: Date.now().toString(),
+            id: (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString(36).substr(2, 9)),
             url: url,
             label: inputLabel || new URL(url).hostname
         };

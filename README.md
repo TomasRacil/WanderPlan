@@ -26,9 +26,13 @@
     *   Google Maps route link generation.
 *   **AI Integration 🤖**:
     *   **Specialized Content Generation**: Granular generation for Itinerary gaps, Pre-trip tasks, Packing List, and Phrasebook.
+    *   **[NEW] Structured Output 🏗️**: Utilizes Google Gemini's JSON support with strict modular schemas (`src/schemas/`) for guaranteed valid data.
+    *   **[NEW] Intelligent Error Handling**: User-friendly limits handling (Quota Exceeded) with a dedicated modal instead of silent failures.
+    *   **[NEW] Lazy Distillation ⚗️**: Optimally processes attachments by extracting and caching text only once, reducing token usage on subsequent requests.
     *   **[NEW] AI Change Review System**: Preview, accept, or reject AI-generated suggestions before they are applied. 
     *   **[NEW] AI Modes**: Choose between "Add New", "Update Existing", "Fill Gaps", or "Remove Duplicates" for precise control.
     *   **Context Aware**: Analyzes existing trip data (dates, style, current items) to provide relevant suggestions.
+    *   **Garbage Collection**: Automatically cleans up AI-extracted context when attachments are deleted to keep memory fresh.
 *   **Smart Checklists**:
     *   **Pre-Trip Tasks**: Manage visas, vaccinations, and documents.
     *   **Packing List**: Categorized packing essentials.
@@ -79,8 +83,10 @@
 *   **Framework**: React 18
 *   **Build Tool**: Vite
 *   **State Management**: Redux Toolkit
+*   **Testing**: Vitest
 *   **Styling**: Tailwind CSS
 *   **Icons**: Lucide React
+*   **AI**: Google Gemini API (Multimodal + Structured Output)
 
 ---
 
@@ -105,6 +111,11 @@
 4.  **Build for production**:
     ```bash
     npm run build
+    ```
+
+5.  **Run Tests**:
+    ```bash
+    npm test
     ```
 
 ## 📄 License

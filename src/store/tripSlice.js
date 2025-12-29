@@ -1,19 +1,26 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { generateTripContent } from '../services/gemini';
+import { generateTripContent, AVAILABLE_MODELS } from '../services/gemini';
 import { get } from 'idb-keyval';
 
+// Async thunk to generate trip content using Gemini
 export const generateTrip = createAsyncThunk(
     'trip/generate',
     async ({ targetArea, customPrompt, aiMode = 'add' }, { getState, rejectWithValue }) => {
-        const { apiKey, tripDetails, itinerary, preTripTasks, language } = getState().trip;
-        if (!apiKey) return rejectWithValue("API Key missing");
+        const state = getState().trip;
+        const { apiKey, tripDetails, itinerary, preTripTasks, packingList, language, selectedModel, distilledContext } = state;
+
+        if (!apiKey && selectedModel !== 'local-nano') return rejectWithValue("API Key missing");
 
         try {
-            const { packingList } = getState().trip;
-            const data = await generateTripContent(apiKey, tripDetails, customPrompt, itinerary, preTripTasks, packingList, language, targetArea, aiMode);
+            const data = await generateTripContent(apiKey, tripDetails, customPrompt, itinerary, preTripTasks, packingList, language, targetArea, aiMode, selectedModel, distilledContext);
             return { data, targetArea, aiMode };
         } catch (error) {
-            return rejectWithValue(error.message);
+            // Check for 429 (Quota Exceeded)
+            if (error.status === 429 || error.message.includes('429') || error.message.includes('Quota')) {
+                // Pass a specific error object structure that our reducer can recognize
+                return rejectWithValue({ code: 429, message: "Quota Exceeded: Daily limit reached for this model." });
+            }
+            return rejectWithValue({ message: error.message });
         }
     }
 );
@@ -59,14 +66,49 @@ export const fetchExchangeRates = createAsyncThunk(
     }
 );
 
+// Helper to migrate legacy data (ensure attachments have IDs)
+const ensureAttachmentIds = (items) => {
+    if (!items) return [];
+    return items.map(item => ({
+        ...item,
+        attachments: (item.attachments || []).map(att => ({
+            ...att,
+            id: att.id || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString(36).substr(2, 9))
+        })),
+        links: (item.links || []).map(link => ({
+            ...link,
+            id: link.id || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString(36).substr(2, 9))
+        }))
+    }));
+};
+
+// Helper: Garbage Collection for Distilled Data
+// Removes extracted info for attachments that no longer exist in the trip
+const cleanupDistilledContext = (state) => {
+    const validIds = new Set();
+    // Collect all active attachment IDs
+    state.itinerary.forEach(i => (i.attachments || []).forEach(a => validIds.add(String(a.id))));
+    state.preTripTasks.forEach(t => (t.attachments || []).forEach(a => validIds.add(String(a.id))));
+
+    // Remove stale keys from distilledContext
+    Object.keys(state.distilledContext).forEach(distilledId => {
+        if (!validIds.has(String(distilledId))) {
+            delete state.distilledContext[distilledId];
+        }
+    });
+};
+
 
 // Helper to get default state
 const getDefaultState = () => ({
     activeTab: 'overview',
     language: 'en',
     showSettings: false,
+    selectedModel: 'gemini-3-flash-preview', // Default model
+    distilledContext: {}, // Cache for distilled attachment info
     apiKey: localStorage.getItem('wanderplan_api_key') || '', // API Key can stay in localStorage for now as it is small/global
     loading: false,
+    quotaError: null, // Specific state for 429 errors
     isInitialized: false,
     customPrompt: '',
     proposedChanges: null, // Store changes for review { data, targetArea, aiMode }
@@ -137,14 +179,25 @@ export const tripSlice = createSlice({
         setCustomPrompt: (state, action) => {
             state.customPrompt = action.payload;
         },
+        clearQuotaError: (state) => {
+            state.quotaError = null;
+        },
         updateTripDetails: (state, action) => {
             state.tripDetails = { ...state.tripDetails, ...action.payload };
         },
+        setSelectedModel: (state, action) => {
+            state.selectedModel = action.payload;
+        },
+        updateDistilledContext: (state, action) => {
+            state.distilledContext = { ...state.distilledContext, ...action.payload };
+        },
         setPreTripTasks: (state, action) => {
             state.preTripTasks = action.payload;
+            cleanupDistilledContext(state);
         },
         setItinerary: (state, action) => {
             state.itinerary = action.payload;
+            cleanupDistilledContext(state);
         },
         setExpenses: (state, action) => {
             state.expenses = action.payload;
@@ -162,8 +215,8 @@ export const tripSlice = createSlice({
         loadFullTrip: (state, action) => {
             const data = action.payload;
             if (data.tripDetails) state.tripDetails = data.tripDetails;
-            if (data.preTripTasks) state.preTripTasks = data.preTripTasks;
-            if (data.itinerary) state.itinerary = data.itinerary;
+            if (data.preTripTasks) state.preTripTasks = ensureAttachmentIds(data.preTripTasks);
+            if (data.itinerary) state.itinerary = ensureAttachmentIds(data.itinerary);
             if (data.expenses) state.expenses = data.expenses;
             if (data.packingList) {
                 state.packingList = data.packingList.map(cat => ({
@@ -178,6 +231,8 @@ export const tripSlice = createSlice({
             if (data.phrasebook) state.phrasebook = data.phrasebook;
             if (data.language) state.language = data.language;
             if (data.exchangeRates) state.exchangeRates = data.exchangeRates;
+            if (data.selectedModel) state.selectedModel = data.selectedModel;
+            if (data.distilledContext) state.distilledContext = data.distilledContext;
         },
         setExchangeRates: (state, action) => {
             state.exchangeRates = action.payload;
@@ -354,12 +409,27 @@ export const tripSlice = createSlice({
             })
             .addCase(generateTrip.fulfilled, (state, action) => {
                 state.loading = false;
-                // Defer application - store changes for review
+
+                // Handle Lazy Distillation logic:
+                // If newDistilledData returned, save it to state immediately
+                if (action.payload.data && action.payload.data.newDistilledData) {
+                    console.log("⚗️ New Distilled Data Received:", action.payload.data.newDistilledData);
+                    state.distilledContext = { ...state.distilledContext, ...action.payload.data.newDistilledData };
+                    // Remove from proposedChanges so it doesn't clutter review
+                    delete action.payload.data.newDistilledData;
+                }
+
                 state.proposedChanges = action.payload;
             })
             .addCase(generateTrip.rejected, (state, action) => {
                 state.loading = false;
-                alert(`Failed to generate trip: ${action.payload}`);
+                // Check if it's a quota error object
+                if (action.payload && action.payload.code === 429) {
+                    state.quotaError = action.payload;
+                } else {
+                    const msg = action.payload?.message || action.payload || "Unknown error";
+                    alert(`Failed to generate trip: ${msg}`);
+                }
             })
             .addCase(fetchExchangeRates.fulfilled, (state, action) => {
                 const refreshedRates = {};
@@ -383,8 +453,8 @@ export const tripSlice = createSlice({
                     const defaultSt = getDefaultState();
 
                     if (data.tripDetails) state.tripDetails = { ...defaultSt.tripDetails, ...data.tripDetails };
-                    if (data.preTripTasks) state.preTripTasks = data.preTripTasks;
-                    if (data.itinerary) state.itinerary = data.itinerary;
+                    if (data.preTripTasks) state.preTripTasks = ensureAttachmentIds(data.preTripTasks);
+                    if (data.itinerary) state.itinerary = ensureAttachmentIds(data.itinerary);
                     if (data.expenses) state.expenses = data.expenses;
                     if (data.packingList) state.packingList = data.packingList;
                     if (data.phrasebook) state.phrasebook = data.phrasebook;
@@ -404,7 +474,8 @@ export const {
     setCustomPrompt, updateTripDetails, setPreTripTasks,
     setItinerary, setExpenses, setPackingList, setPhrasebook,
     loadFullTrip, setLanguage, setExchangeRates, updateExchangeRate,
-    applyProposedChanges, discardProposedChanges, toggleProposedChange
+    applyProposedChanges, discardProposedChanges, toggleProposedChange,
+    setSelectedModel, updateDistilledContext, clearQuotaError
 } = tripSlice.actions;
 
 export default tripSlice.reducer;

@@ -7,8 +7,9 @@ import { useRegisterSW } from 'virtual:pwa-register/react'
 
 import { COLORS } from './data/uiConstants';
 import {
-  setActiveTab, setShowSettings, loadFullTrip, setApiKey, generateTrip, setLanguage, initializeTrip
+  setActiveTab, setShowSettings, loadFullTrip, setApiKey, generateTrip, setLanguage, initializeTrip, setSelectedModel, clearQuotaError
 } from './store/tripSlice';
+import { AVAILABLE_MODELS, logAvailableModels } from './services/gemini';
 import { set } from 'idb-keyval';
 import JSZip from 'jszip';
 import { Overview } from './components/Overview';
@@ -20,10 +21,11 @@ import { Map } from './components/Map';
 import { LOCALES } from './i18n/locales';
 import { Button } from './components/CommonUI';
 import { ReviewModal } from './components/ReviewModal';
+import { ErrorModal } from './components/ErrorModal';
 
 function WanderPlanContent() {
   const dispatch = useDispatch();
-  const { tripDetails, expenses, itinerary, preTripTasks, apiKey, customPrompt, packingList, phrasebook, exchangeRates, isInitialized } = useSelector(state => state.trip);
+  const { tripDetails, expenses, itinerary, preTripTasks, apiKey, customPrompt, packingList, phrasebook, exchangeRates, isInitialized, selectedModel, distilledContext } = useSelector(state => state.trip);
   const activeTab = useSelector(state => state.trip.activeTab);
   const showSettings = useSelector(state => state.trip.showSettings);
   const loading = useSelector(state => state.trip.loading);
@@ -36,19 +38,34 @@ function WanderPlanContent() {
     updateServiceWorker,
   } = useRegisterSW();
 
+  // Local Nano Availability Check
+  const [hasNano, setHasNano] = React.useState(false);
+  React.useEffect(() => {
+    // Check if window.ai is available (Chrome Canary/Dev experimental)
+    if (window.ai && window.ai.languageModel) {
+      setHasNano(true);
+    }
+  }, []);
+
 
   // Auto-save to localStorage on change (Initial load handled in tripSlice)
 
   // Auto-save to IndexedDB on change
   React.useEffect(() => {
     if (!isInitialized) return;
-    const tripData = { tripDetails, preTripTasks, itinerary, expenses, packingList, phrasebook, exchangeRates, language };
+    const tripData = { tripDetails, preTripTasks, itinerary, expenses, packingList, phrasebook, exchangeRates, language, selectedModel, distilledContext };
     set('wanderplan_current_trip', tripData).catch(err => console.error('Auto-save failed', err));
-  }, [tripDetails, preTripTasks, itinerary, expenses, packingList, phrasebook, exchangeRates, language, isInitialized]);
+  }, [tripDetails, preTripTasks, itinerary, expenses, packingList, phrasebook, exchangeRates, language, isInitialized, selectedModel, distilledContext]);
 
   React.useEffect(() => {
     dispatch(initializeTrip());
   }, [dispatch]);
+
+  // React.useEffect(() => {
+  //   if (apiKey) {
+  //     logAvailableModels(apiKey);
+  //   }
+  // }, [apiKey]);
 
   const handleSaveTrip = async () => {
     const tripData = {
@@ -61,7 +78,9 @@ function WanderPlanContent() {
       packingList,
       phrasebook,
       exchangeRates,
-      language
+      language,
+      selectedModel,
+      distilledContext
     };
 
     try {
@@ -187,6 +206,12 @@ function WanderPlanContent() {
       {/* Review Modal for AI Changes */}
       <ReviewModal />
 
+      {/* Error Modal for Quota Limits */}
+      <ErrorModal
+        error={useSelector(state => state.trip.quotaError)}
+        onClose={() => dispatch(clearQuotaError())}
+      />
+
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-2 z-50 flex justify-between items-center safe-area-pb">
         {navItems.map((item) => (
@@ -223,6 +248,23 @@ function WanderPlanContent() {
               placeholder="Gemini API Key"
               className="w-full p-2 border rounded-lg mb-4 text-sm"
             />
+
+            <div className="mb-4">
+              <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">AI Model</h3>
+              <select
+                value={selectedModel}
+                onChange={(e) => dispatch(setSelectedModel(e.target.value))}
+                className="w-full p-2 border rounded-lg text-sm bg-white"
+              >
+                {Object.keys(AVAILABLE_MODELS)
+                  .filter(k => AVAILABLE_MODELS[k].type === 'cloud' || (k === 'local-nano' && hasNano))
+                  .map(modelKey => (
+                    <option key={modelKey} value={modelKey}>
+                      {modelKey} {modelKey === 'local-nano' ? '(Local)' : ''}
+                    </option>
+                  ))}
+              </select>
+            </div>
 
             <div className="mb-4">
               <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">Language</h3>
