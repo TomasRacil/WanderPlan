@@ -14,7 +14,7 @@ import { getBudgetCategory } from '../utils/helpers';
 
 export const PreTripTasks = () => {
     const dispatch = useDispatch();
-    const { preTripTasks, itinerary, packingList, tripDetails, language, exchangeRates = {}, loading } = useSelector(state => state.trip);
+    const { preTripTasks, itinerary, packingList, tripDetails, language, exchangeRates = {}, loading, documents = {} } = useSelector(state => state.trip);
 
     // Filtered list of currencies allowed (Home + Added)
     const activeCurrencies = ALL_CURRENCIES.filter(c =>
@@ -24,22 +24,7 @@ export const PreTripTasks = () => {
 
     const t = LOCALES[language || 'en'];
 
-    // Derive all unique attachments for the Library
-    const existingAttachments = useMemo(() => {
-        const unique = new Map();
-        const add = (items) => {
-            if (!items) return;
-            items.forEach(item => {
-                if (item.attachments) {
-                    item.attachments.forEach(att => unique.set(String(att.id), att));
-                }
-            });
-        };
-        add(itinerary);
-        add(preTripTasks);
-        packingList?.forEach(cat => add(cat.items));
-        return Array.from(unique.values());
-    }, [itinerary, preTripTasks, packingList]);
+    // Derived document library is now handled internally by AttachmentManager using Redux state
 
     const [modal, setModal] = useState({ isOpen: false, type: 'add', taskId: null });
     const [taskForm, setTaskForm] = useState({
@@ -51,7 +36,7 @@ export const PreTripTasks = () => {
         isPaid: false,
         timeToComplete: '',
         notes: '',
-        attachments: [],
+        attachmentIds: [],
         links: []
     });
     const [localPrompt, setLocalPrompt] = useState('');
@@ -70,7 +55,7 @@ export const PreTripTasks = () => {
                 isPaid: task.isPaid || false,
                 timeToComplete: task.timeToComplete || '',
                 notes: task.notes || '',
-                attachments: task.attachments || [],
+                attachmentIds: task.attachmentIds || [],
                 links: task.links || []
             });
             setModal({ isOpen: true, type: 'edit', taskId: task.id });
@@ -84,7 +69,7 @@ export const PreTripTasks = () => {
                 isPaid: false,
                 timeToComplete: '',
                 notes: '',
-                attachments: [],
+                attachmentIds: [],
                 links: []
             });
             setModal({ isOpen: true, type: 'add', taskId: null });
@@ -103,7 +88,7 @@ export const PreTripTasks = () => {
                 text: taskForm.text,
                 deadline: taskForm.deadline,
                 done: false,
-                attachments: taskForm.attachments,
+                attachmentIds: taskForm.attachmentIds,
                 links: taskForm.links,
                 cost: costValue,
                 currency: taskForm.currency,
@@ -116,7 +101,7 @@ export const PreTripTasks = () => {
         } else {
             dispatch(setPreTripTasks(preTripTasks.map(t =>
                 t.id === modal.taskId
-                    ? { ...t, text: taskForm.text, deadline: taskForm.deadline, cost: costValue, currency: taskForm.currency, category: getBudgetCategory(null, taskForm.category), isPaid: taskForm.isPaid, timeToComplete: taskForm.timeToComplete, notes: taskForm.notes, attachments: taskForm.attachments, links: taskForm.links }
+                    ? { ...t, text: taskForm.text, deadline: taskForm.deadline, cost: costValue, currency: taskForm.currency, category: getBudgetCategory(null, taskForm.category), isPaid: taskForm.isPaid, timeToComplete: taskForm.timeToComplete, notes: taskForm.notes, attachmentIds: taskForm.attachmentIds, links: taskForm.links }
                     : t
             )));
         }
@@ -254,13 +239,17 @@ export const PreTripTasks = () => {
                                             )}
 
                                             {/* Attachments & Links Preview */}
-                                            {(task.attachments?.length > 0 || task.links?.length > 0) && (
+                                            {(task.attachmentIds?.length > 0 || task.links?.length > 0) && (
                                                 <div className="flex flex-wrap gap-2 mt-2 mb-2">
-                                                    {task.attachments?.map(a => (
-                                                        <button key={a.id} onClick={() => setPreviewFile(a)} className="inline-flex items-center gap-1 text-xs bg-slate-100 px-2 py-1 rounded text-slate-600 hover:text-indigo-600 border border-slate-200 transition-colors" title="Preview File">
-                                                            <Paperclip size={10} /> {a.name}
-                                                        </button>
-                                                    ))}
+                                                    {task.attachmentIds?.map(id => {
+                                                        const doc = documents[id];
+                                                        if (!doc) return null;
+                                                        return (
+                                                            <button key={id} onClick={() => setPreviewFile(doc)} className="inline-flex items-center gap-1 text-xs bg-slate-100 px-2 py-1 rounded text-slate-600 hover:text-indigo-600 border border-slate-200 transition-colors" title="Preview File">
+                                                                <Paperclip size={10} /> {doc.name}
+                                                            </button>
+                                                        );
+                                                    })}
                                                     {task.links?.map(l => (
                                                         <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs bg-indigo-50 px-2 py-1 rounded text-indigo-600 hover:underline border border-indigo-100">
                                                             <LinkIcon size={10} /> {l.label}
@@ -405,9 +394,8 @@ export const PreTripTasks = () => {
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.attachments} & {t.links}</label>
                         <AttachmentManager
-                            attachments={taskForm.attachments || []}
+                            attachmentIds={taskForm.attachmentIds || []}
                             links={taskForm.links || []}
-                            existingAttachments={existingAttachments}
                             onUpdate={(data) => setTaskForm({ ...taskForm, ...data })}
                             t={t}
                         />

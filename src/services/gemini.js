@@ -35,7 +35,7 @@ const getSchemaForArea = (targetArea, aiMode) => {
     }
 };
 
-export const generateTripContent = async (apiKey, tripDetails, customPrompt, itinerary, preTripTasks, packingList, language = 'en', targetArea = 'all', aiMode = 'add', selectedModel = 'gemini-3-flash-preview', distilledContext = {}, promptAttachments = []) => {
+export const generateTripContent = async (apiKey, tripDetails, customPrompt, itinerary, preTripTasks, packingList, language = 'en', targetArea = 'all', aiMode = 'add', selectedModel = 'gemini-3-flash-preview', allDocuments = {}, promptAttachments = []) => {
     const existingItinerary = JSON.stringify((itinerary || []).map(i => ({
         id: i.id,
         title: i.title,
@@ -46,7 +46,8 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
         category: i.category,
         cost: i.cost || 0,
         currency: i.currency,
-        location: i.location
+        location: i.location,
+        attachmentIds: i.attachmentIds || []
     })));
 
     const existingTasks = JSON.stringify((preTripTasks || []).map(t => ({
@@ -55,21 +56,33 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
         status: t.done ? 'Done' : 'Pending',
         cost: t.cost || 0,
         currency: t.currency,
-        category: t.category
+        category: t.category,
+        attachmentIds: t.attachmentIds || []
     })));
 
     const existingPacking = JSON.stringify((packingList || []).map(cat => ({
         id: cat.id,
         category: cat.category,
-        items: (cat.items || []).map(i => ({ id: i.id, text: i.text }))
+        items: (cat.items || []).map(i => ({ id: i.id, text: i.text, attachmentIds: i.attachmentIds || [] }))
     })));
 
-    // Prepare Distilled Context String
+    // Prepare Distilled Context String from allDocuments
     let distilledInfoString = "";
-    if (Object.keys(distilledContext).length > 0) {
-        console.log("ℹ️ Using Distilled Context for:", Object.keys(distilledContext));
+    const referencedDocIds = new Set();
+
+    // Collect all referenced IDs
+    (itinerary || []).forEach(i => (i.attachmentIds || []).forEach(id => referencedDocIds.add(String(id))));
+    (preTripTasks || []).forEach(t => (t.attachmentIds || []).forEach(id => referencedDocIds.add(String(id))));
+    (promptAttachments || []).forEach(id => referencedDocIds.add(String(id)));
+
+    const summarizedDocs = Array.from(referencedDocIds)
+        .map(id => ({ id, doc: allDocuments[id] }))
+        .filter(item => item.doc && item.doc.summary);
+
+    if (summarizedDocs.length > 0) {
+        console.log("ℹ️ Using Summaries for Documents:", summarizedDocs.map(d => d.id));
         distilledInfoString = "DISTILLED ATTACHMENT DATA (Do NOT request these files again):\n" +
-            Object.entries(distilledContext).map(([id, info]) => `Attachment ${id}: ${info.extractedInfo}`).join('\n');
+            summarizedDocs.map(item => `Attachment ${item.id}: ${item.doc.summary}`).join('\n');
     }
 
     const systemPrompt = `
@@ -84,7 +97,6 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
     3.  **Strict JSON**: valid JSON only, no markdown blocks.
     4.  **Dates**: The current date is ${new Date().toISOString().split('T')[0]}.
     5.  **Context**: 
-        -   Distilled Context from previous attachments: ${JSON.stringify(distilledContext)}
         -   Current Trip Details: ${JSON.stringify(tripDetails)}
     `;
 
@@ -113,53 +125,24 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
 
     // Identify Fresh Attachments (Lazy Distillation)
     const allAttachments = [];
-    const seenAttachmentIds = new Set();
+    const rawDataNeededIds = Array.from(referencedDocIds).filter(id => {
+        const doc = allDocuments[id];
+        return doc && !doc.summary && doc.data;
+    });
 
-    const collectAttachments = (items) => {
-        if (!items) return;
-        items.forEach(item => {
-            if (item.attachments && item.attachments.length > 0) {
-                item.attachments.forEach(att => {
-                    // Check if already distilled or already added to this request
-                    if (att.id && (distilledContext[att.id] || seenAttachmentIds.has(att.id))) return;
-
-                    const base64Data = att.data?.split(',')[1];
-                    if (base64Data) {
-                        seenAttachmentIds.add(att.id);
-                        allAttachments.push({ text: `[Attachment ID: ${att.id}]` });
-                        allAttachments.push({
-                            inlineData: {
-                                data: base64Data,
-                                mimeType: att.type
-                            },
-                        });
-                    }
-                });
-            }
-        });
-    };
-
-    collectAttachments(itinerary);
-    collectAttachments(preTripTasks);
-
-    // Also collect from current prompt
-    if (promptAttachments && promptAttachments.length > 0) {
-        promptAttachments.forEach(att => {
-            if (seenAttachmentIds.has(att.id)) return;
-
-            const base64Data = att.data?.split(',')[1];
-            if (base64Data) {
-                seenAttachmentIds.add(att.id);
-                allAttachments.push({ text: `[Attachment ID: ${att.id}]` });
-                allAttachments.push({
-                    inlineData: {
-                        data: base64Data,
-                        mimeType: att.type
-                    },
-                });
-            }
-        });
-    }
+    rawDataNeededIds.forEach(id => {
+        const doc = allDocuments[id];
+        const base64Data = doc.data?.split(',')[1];
+        if (base64Data) {
+            allAttachments.push({ text: `[Attachment ID: ${id}]` });
+            allAttachments.push({
+                inlineData: {
+                    data: base64Data,
+                    mimeType: doc.type
+                },
+            });
+        }
+    });
 
     let systemInstruction = "";
     if (allAttachments.length > 0) {

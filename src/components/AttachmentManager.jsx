@@ -1,46 +1,66 @@
 import React, { useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { addDocuments } from '../store/tripSlice';
 import { Paperclip, Link as LinkIcon, X, Plus, Image as ImageIcon, FileText, Trash2, ExternalLink, Download, Library, CheckSquare } from 'lucide-react';
 import { Button } from './CommonUI';
 
-export const AttachmentManager = ({ attachments = [], links = [], existingAttachments = [], onUpdate, t }) => {
+export const AttachmentManager = ({ attachmentIds = [], links = [], onUpdate, t }) => {
+    const dispatch = useDispatch();
+    const allDocuments = useSelector(state => state.trip.documents || {});
     const [activeTab, setActiveTab] = useState('files');
     const [inputUrl, setInputUrl] = useState('');
     const [inputLabel, setInputLabel] = useState('');
     const [error, setError] = useState(null);
+    const [isDragging, setIsDragging] = useState(false);
 
-    const handleFileUpload = (e) => {
-        const files = Array.from(e.target.files);
-        if (!files.length) return;
+    // Resolve IDs to actual document objects for rendering
+    const attachments = attachmentIds
+        .map(id => allDocuments[id])
+        .filter(Boolean);
 
-        let newAttachments = [];
+    // Get documents that are NOT in the current item but exist in the project
+    const libraryDocuments = Object.values(allDocuments)
+        .filter(doc => !attachmentIds.includes(String(doc.id)));
+
+    const processFiles = (files) => {
+        if (!files || !files.length) return;
+
+        let newDocsToStore = [];
+        let newIdsForParent = [];
         let errorMsg = null;
+        let processedCount = 0;
 
         files.forEach(file => {
-            // 5MB Limit for IDB
             if (file.size > 5 * 1024 * 1024) {
                 errorMsg = t?.fileTooLarge || "File too large (Max 5MB)";
+                processedCount++;
                 return;
             }
 
             const reader = new FileReader();
             reader.onloadend = () => {
                 const base64 = reader.result;
-                const newAttachment = {
-                    id: (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString(36).substr(2, 9)),
+                const id = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString(36).substr(2, 9));
+
+                const newDoc = {
+                    id,
                     name: file.name,
-                    type: file.type,
-                    data: base64
+                    type: file.type || 'application/octet-stream',
+                    data: base64,
+                    summary: '',
+                    includeInPrint: true,
+                    createdAt: new Date().toISOString()
                 };
 
-                // We need to accumulate attachments because FileReader is async
-                // Ideally we use promises or just simple callback stacking, but since we want to batch update:
-                // Let's rely on functional state update if possible, but here we invoke onUpdate.
-                // Better approach for multiple async reads:
+                newDocsToStore.push(newDoc);
+                newIdsForParent.push(id);
+                processedCount++;
 
-                newAttachments.push(newAttachment);
-
-                if (newAttachments.length === files.length) {
-                    onUpdate({ attachments: [...attachments, ...newAttachments], links });
+                if (processedCount === files.length) {
+                    if (newDocsToStore.length > 0) {
+                        dispatch(addDocuments(newDocsToStore));
+                        onUpdate({ attachmentIds: [...attachmentIds, ...newIdsForParent], links });
+                    }
                     setError(null);
                 }
             };
@@ -48,12 +68,37 @@ export const AttachmentManager = ({ attachments = [], links = [], existingAttach
         });
 
         if (errorMsg) setError(errorMsg);
-        e.target.value = ''; // Reset input
+    };
+
+    const handleFileUpload = (e) => {
+        const files = Array.from(e.target.files);
+        processFiles(files);
+        e.target.value = '';
+    };
+
+    const handleDrag = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === "dragover" || e.type === "dragenter") {
+            setIsDragging(true);
+        } else if (e.type === "dragleave" || e.type === "drop") {
+            setIsDragging(false);
+        }
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        const files = Array.from(e.dataTransfer.files);
+        processFiles(files);
     };
 
     const handleDeleteAttachment = (id) => {
+        // We only remove the REFERENCE from the item. 
+        // The global file stays in the library.
         onUpdate({
-            attachments: attachments.filter(a => a.id !== id),
+            attachmentIds: attachmentIds.filter(aId => String(aId) !== String(id)),
             links
         });
     };
@@ -71,14 +116,14 @@ export const AttachmentManager = ({ attachments = [], links = [], existingAttach
             label: inputLabel || new URL(url).hostname
         };
 
-        onUpdate({ attachments, links: [...links, newLink] });
+        onUpdate({ attachmentIds, links: [...links, newLink] });
         setInputUrl('');
         setInputLabel('');
     };
 
     const handleDeleteLink = (id) => {
         onUpdate({
-            attachments,
+            attachmentIds,
             links: links.filter(l => l.id !== id)
         });
     };
@@ -91,7 +136,7 @@ export const AttachmentManager = ({ attachments = [], links = [], existingAttach
                     onClick={() => setActiveTab('files')}
                     className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider ${activeTab === 'files' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                    {t?.files || 'Files'} ({attachments.length})
+                    {t?.files || 'Files'} ({attachmentIds.length})
                 </button>
                 <button
                     type="button"
@@ -100,13 +145,13 @@ export const AttachmentManager = ({ attachments = [], links = [], existingAttach
                 >
                     {t?.links || 'Links'} ({links.length})
                 </button>
-                {existingAttachments.length > 0 && (
+                {libraryDocuments.length > 0 && (
                     <button
                         type="button"
                         onClick={() => setActiveTab('library')}
                         className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider ${activeTab === 'library' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50' : 'text-slate-500 hover:text-slate-700'}`}
                     >
-                        {t?.library || 'Library'}
+                        {t?.library || 'Library'} ({libraryDocuments.length})
                     </button>
                 )}
             </div>
@@ -115,9 +160,15 @@ export const AttachmentManager = ({ attachments = [], links = [], existingAttach
                 {activeTab === 'files' && (
                     <div className="space-y-4">
                         <div className="flex items-center justify-center w-full">
-                            <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
-                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                    <Paperclip className="w-6 h-6 text-slate-400 mb-1" />
+                            <label
+                                className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer transition-all ${isDragging ? 'border-indigo-500 bg-indigo-50 shadow-inner' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'}`}
+                                onDragEnter={handleDrag}
+                                onDragOver={handleDrag}
+                                onDragLeave={handleDrag}
+                                onDrop={handleDrop}
+                            >
+                                <div className="flex flex-col items-center justify-center pt-5 pb-6 pointer-events-none">
+                                    <Paperclip className={`w-6 h-6 mb-1 ${isDragging ? 'text-indigo-500 animate-bounce' : 'text-slate-400'}`} />
                                     <p className="mb-1 text-xs text-slate-500"><span className="font-semibold">{t?.clickToUpload}</span> {t?.dropFiles}</p>
                                     <p className="text-[10px] text-slate-400">PDF, PNG, JPG (Max 5MB)</p>
                                 </div>
@@ -201,10 +252,9 @@ export const AttachmentManager = ({ attachments = [], links = [], existingAttach
                     <div className="space-y-4">
                         <p className="text-xs text-slate-500 italic mb-2">{t?.libraryDesc || "Select documents previously uploaded to other items in your trip."}</p>
                         <div className="space-y-2 max-h-60 overflow-y-auto">
-                            {existingAttachments.map(file => {
-                                const isAdded = attachments.some(a => a.id === file.id);
+                            {libraryDocuments.map(file => {
                                 return (
-                                    <div key={file.id} className={`flex items-center justify-between p-2 border rounded-lg group ${isAdded ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200 hover:border-indigo-300'}`}>
+                                    <div key={file.id} className="flex items-center justify-between p-2 border bg-white border-slate-200 hover:border-indigo-300 rounded-lg group">
                                         <div className="flex items-center gap-3 overflow-hidden">
                                             <div className="w-8 h-8 shrink-0 bg-slate-100 rounded flex items-center justify-center text-slate-500">
                                                 {file.type.includes('image') ? (
@@ -220,14 +270,12 @@ export const AttachmentManager = ({ attachments = [], links = [], existingAttach
                                         </div>
                                         <button
                                             onClick={() => {
-                                                if (isAdded) return;
-                                                // Add reference to existing file
-                                                onUpdate({ attachments: [...attachments, file], links });
+                                                // Add reference to existing file from library
+                                                onUpdate({ attachmentIds: [...attachmentIds, String(file.id)], links });
                                             }}
-                                            className={`p-1.5 rounded-lg transition-colors ${isAdded ? 'text-indigo-400 cursor-default' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
-                                            disabled={isAdded}
+                                            className="p-1.5 rounded-lg transition-colors text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
                                         >
-                                            {isAdded ? <CheckSquare size={16} /> : <Plus size={16} />}
+                                            <Plus size={16} />
                                         </button>
                                     </div>
                                 );

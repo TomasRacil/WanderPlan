@@ -7,63 +7,15 @@ export const generateTrip = createAsyncThunk(
     'trip/generate',
     async ({ targetArea, customPrompt, aiMode = 'add', promptAttachments = [] }, { getState, rejectWithValue }) => {
         const state = getState().trip;
-        const { apiKey, tripDetails, itinerary, preTripTasks, packingList, language, selectedModel, distilledContext } = state;
+        const { apiKey, tripDetails, itinerary, preTripTasks, packingList, language, selectedModel, documents } = state;
 
         if (!apiKey && selectedModel !== 'local-nano') return rejectWithValue("API Key missing");
 
         try {
-            // Append prompt attachments to the items passed to gemini if needed, but generateTripContent implementation
-            // expects them in the items or separate? 
-            // My previous gemini.js implementation checks itinerary/tasks for attachments. 
-            // It also accepts 'promptAttachments' maybe? 
-            // Wait, looking at gemini.js signature: (..., distilledContext). It does NOT take promptAttachments directly yet.
-            // I need to update generateTripContent signature in gemini.js too?
-            // Actually, for "Hybrid-Extraction mode", gemini.js collects attachments from existing items.
-            // I should modify generateTripContent to ALSO accept these new promptAttachments.
-
-            // For now, let's assume I will update gemini.js signature next or I missed it.
-            // Wait, I didn't update gemini.js signature in step 406/407!
-            // I need to update gemini.js signature first or pass them injected into a fake item? 
-            // Cleaner: Update gemini.js signature.
-
-            // Let's assume I fix gemini.js signature. 
-
             const data = await generateTripContent(
                 apiKey, tripDetails, customPrompt, itinerary, preTripTasks, packingList,
-                language, targetArea, aiMode, selectedModel, distilledContext, promptAttachments
+                language, targetArea, aiMode, selectedModel, documents, promptAttachments
             );
-
-            // Hydrate attachmentIds to actual attachment objects for the UI
-            const flattenAttachments = (itemIds) => {
-                if (!itemIds || !Array.isArray(itemIds)) return [];
-                return itemIds.map(id => {
-                    const fresh = promptAttachments.find(a => a.id === id);
-                    if (fresh) return fresh;
-                    // Fallback for existing items that might be referenced but not in promptAttachments
-                    // In a real app, we might need to look up in state, but here we prioritize fresh ones.
-                    // If it's an existing ID not in prompt, we create a placeholder so it doesn't break UI,
-                    // but ideally, the UI should handle missing data or lookup from 'allAttachments' pool.
-                    // For now, return a placeholder to ensure the ID is preserved in the object list.
-                    return { id, name: "Attachment", type: "unknown" };
-                });
-            };
-
-            if (data.adds) {
-                data.adds = data.adds.map(item => ({
-                    ...item,
-                    attachments: flattenAttachments(item.attachmentIds)
-                }));
-            }
-
-            if (data.updates) {
-                data.updates = data.updates.map(upd => {
-                    // For updates, the attachmentIds are inside 'fields'
-                    if (upd.fields && upd.fields.attachmentIds) {
-                        upd.fields.attachments = flattenAttachments(upd.fields.attachmentIds);
-                    }
-                    return upd;
-                });
-            }
 
             return { data, targetArea, aiMode };
         } catch (error) {
@@ -132,39 +84,120 @@ const ensureAttachmentIds = (items) => {
     }));
 };
 
-// Helper: Garbage Collection for Distilled Data
-// Removes extracted info for attachments that no longer exist in the trip
-const cleanupDistilledContext = (state) => {
+// Helper: Garbage Collection for Document Library
+// Removes documents that are not referenced anywhere ONLY when explicitly called by user
+const cleanupDocuments = (state) => {
+    if (!state.documents) state.documents = {};
     const validIds = new Set();
-    // Collect all active attachment IDs
-    state.itinerary.forEach(i => (i.attachments || []).forEach(a => validIds.add(String(a.id))));
-    state.preTripTasks.forEach(t => (t.attachments || []).forEach(a => validIds.add(String(a.id))));
-
-    // Protect IDs in Proposed Changes (Added/Updated but not yet applied)
+    state.itinerary.forEach(i => (i.attachmentIds || []).forEach(id => validIds.add(String(id))));
+    state.preTripTasks.forEach(t => (t.attachmentIds || []).forEach(id => validIds.add(String(id))));
+    // Don't forget proposed changes
     if (state.proposedChanges && state.proposedChanges.data) {
         const { adds, updates } = state.proposedChanges.data;
-        if (adds) {
-            adds.forEach(item => {
-                (item.attachments || []).forEach(a => validIds.add(String(a.id)));
-                (item.attachmentIds || []).forEach(id => validIds.add(String(id)));
-            });
-        }
-        if (updates) {
-            updates.forEach(upd => {
-                if (upd.fields) {
-                    (upd.fields.attachments || []).forEach(a => validIds.add(String(a.id)));
-                    (upd.fields.attachmentIds || []).forEach(id => validIds.add(String(id)));
-                }
-            });
-        }
+        if (adds) adds.forEach(item => (item.attachmentIds || []).forEach(id => validIds.add(String(id))));
+        if (updates) updates.forEach(upd => {
+            if (upd.fields && upd.fields.attachmentIds) upd.fields.attachmentIds.forEach(id => validIds.add(String(id)));
+        });
     }
 
-    // Remove stale keys from distilledContext
-    Object.keys(state.distilledContext).forEach(distilledId => {
-        if (!validIds.has(String(distilledId))) {
-            delete state.distilledContext[distilledId];
+    Object.keys(state.documents).forEach(id => {
+        if (!validIds.has(String(id))) {
+            delete state.documents[id];
         }
     });
+};
+
+// Migration helper: Moves decentralized attachments to central store
+const migrateToCentralStore = (state) => {
+    if (!state.documents) state.documents = {};
+
+    // 1. First pass: Pull from distilledContext to ensure all summarized files are registered
+    if (state.distilledContext) {
+        Object.entries(state.distilledContext).forEach(([id, info]) => {
+            const docId = String(id);
+            if (!state.documents[docId]) {
+                state.documents[docId] = {
+                    id: docId,
+                    name: "Attachment",
+                    type: "unknown",
+                    summary: info.extractedInfo || info.summary || '',
+                    includeInPrint: true,
+                    createdAt: new Date().toISOString()
+                };
+            } else if (!state.documents[docId].summary) {
+                state.documents[docId].summary = info.extractedInfo || info.summary || '';
+            }
+        });
+    }
+
+    const processItem = (item) => {
+        if (!item) return;
+
+        // Ensure attachmentIds is initialized
+        if (!item.attachmentIds) item.attachmentIds = [];
+
+        // 2. Migrate from legacy attachments array
+        if (item.attachments && Array.isArray(item.attachments)) {
+            item.attachments.forEach(att => {
+                const id = String(att.id);
+                const distilledSummary = state.distilledContext?.[id]?.extractedInfo || '';
+                const itemSummary = att.summary || att.aisummary || '';
+
+                if (!state.documents[id]) {
+                    state.documents[id] = {
+                        ...att,
+                        summary: distilledSummary || itemSummary || '',
+                        includeInPrint: att.includeInPrint ?? true,
+                        createdAt: att.createdAt || new Date().toISOString()
+                    };
+                } else {
+                    const doc = state.documents[id];
+                    // Prioritize actual data
+                    if (!doc.data && att.data) doc.data = att.data;
+
+                    // Prioritize actual summary
+                    if (!doc.summary && itemSummary) doc.summary = itemSummary;
+                    if (!doc.summary && distilledSummary) doc.summary = distilledSummary;
+
+                    // Prioritize real names over placeholders like "Attachment" or "unknown"
+                    if ((!doc.name || doc.name === 'Attachment' || doc.name === 'unknown') && att.name && att.name !== 'Attachment') {
+                        doc.name = att.name;
+                    }
+                    if ((!doc.type || doc.type === 'unknown' || doc.type === 'application/octet-stream') && att.type && att.type !== 'unknown') {
+                        doc.type = att.type;
+                    }
+
+                    if (att.includeInPrint !== undefined) doc.includeInPrint = att.includeInPrint;
+                }
+
+                if (!item.attachmentIds.includes(id)) {
+                    item.attachmentIds.push(id);
+                }
+            });
+            // delete item.attachments;
+        }
+    };
+
+    // Process all potential item containers
+    state.itinerary.forEach(processItem);
+    state.preTripTasks.forEach(processItem);
+    if (state.packingList) {
+        state.packingList.forEach(cat => {
+            if (cat.items) cat.items.forEach(processItem);
+        });
+    }
+
+    // Handle proposed changes too
+    if (state.proposedChanges && state.proposedChanges.data) {
+        const { adds, updates } = state.proposedChanges.data;
+        if (adds) adds.forEach(processItem);
+        if (updates) updates.forEach(upd => {
+            if (upd.fields) processItem(upd.fields);
+        });
+    }
+
+    // Cleanup distilledContext
+    state.distilledContext = {};
 };
 
 
@@ -173,8 +206,9 @@ const getDefaultState = () => ({
     activeTab: 'overview',
     language: 'en',
     showSettings: false,
-    selectedModel: 'gemini-3-flash-preview', // Default model
-    distilledContext: {}, // Cache for distilled attachment info
+    selectedModel: 'gemini-2-flash-preview', // Default model
+    documents: {}, // Centralized storage for ALL documents/attachments
+    // distilledContext: {}, // DEPRECATED: merged into documents
     apiKey: localStorage.getItem('wanderplan_api_key') || '', // API Key can stay in localStorage for now as it is small/global
     loading: false,
     quotaError: null, // Specific state for 429 errors
@@ -257,16 +291,36 @@ export const tripSlice = createSlice({
         setSelectedModel: (state, action) => {
             state.selectedModel = action.payload;
         },
-        updateDistilledContext: (state, action) => {
-            state.distilledContext = { ...state.distilledContext, ...action.payload };
+        addDocuments: (state, action) => {
+            if (!state.documents) state.documents = {};
+            const docs = action.payload; // Array of document objects
+            docs.forEach(doc => {
+                const id = String(doc.id);
+                if (!state.documents[id]) {
+                    state.documents[id] = {
+                        ...doc,
+                        summary: doc.summary || '',
+                        includeInPrint: doc.includeInPrint ?? true,
+                        createdAt: doc.createdAt || new Date().toISOString()
+                    };
+                }
+            });
+        },
+        updateDocument: (state, action) => {
+            if (!state.documents) state.documents = {};
+            const { id, updates } = action.payload;
+            if (state.documents[id]) {
+                state.documents[id] = { ...state.documents[id], ...updates };
+            }
+        },
+        removeUnusedDocuments: (state) => {
+            cleanupDocuments(state);
         },
         setPreTripTasks: (state, action) => {
             state.preTripTasks = action.payload;
-            cleanupDistilledContext(state);
         },
         setItinerary: (state, action) => {
             state.itinerary = action.payload;
-            cleanupDistilledContext(state);
         },
         setExpenses: (state, action) => {
             state.expenses = action.payload;
@@ -301,7 +355,11 @@ export const tripSlice = createSlice({
             if (data.language) state.language = data.language;
             if (data.exchangeRates) state.exchangeRates = data.exchangeRates;
             if (data.selectedModel) state.selectedModel = data.selectedModel;
+            if (data.documents) state.documents = data.documents;
             if (data.distilledContext) state.distilledContext = data.distilledContext;
+
+            // Migrate if needed
+            migrateToCentralStore(state);
         },
         setExchangeRates: (state, action) => {
             state.exchangeRates = action.payload;
@@ -313,37 +371,32 @@ export const tripSlice = createSlice({
         discardProposedChanges: (state) => {
             state.proposedChanges = null;
         },
-        // Global Attachment Deletion
+        // Global Document Deletion
         deleteGlobalAttachment: (state, action) => {
-            const attachmentId = String(action.payload);
+            if (!state.documents) state.documents = {};
+            const documentId = String(action.payload);
 
-            // Helper to remove attachment from an item
-            const remove = (item) => {
-                if (item.attachments) {
-                    item.attachments = item.attachments.filter(a => String(a.id) !== attachmentId);
-                }
+            // 1. Remove from Document Library
+            delete state.documents[documentId];
+
+            // 2. Scrub from all items
+            const removeRef = (item) => {
                 if (item.attachmentIds) {
-                    item.attachmentIds = item.attachmentIds.filter(id => String(id) !== attachmentId);
+                    item.attachmentIds = item.attachmentIds.filter(id => String(id) !== documentId);
+                }
+                // Legacy support
+                if (item.attachments) {
+                    item.attachments = item.attachments.filter(a => String(a.id) !== documentId);
                 }
                 return item;
             };
 
-            // 1. Clean Itinerary
-            state.itinerary = state.itinerary.map(remove);
-
-            // 2. Clean PreTripTasks
-            state.preTripTasks = state.preTripTasks.map(remove);
-
-            // 3. Clean PackingList
+            state.itinerary = state.itinerary.map(removeRef);
+            state.preTripTasks = state.preTripTasks.map(removeRef);
             state.packingList = state.packingList.map(cat => ({
                 ...cat,
-                items: (cat.items || []).map(remove)
+                items: (cat.items || []).map(removeRef)
             }));
-
-            // 4. Clean Distilled Context
-            if (state.distilledContext && state.distilledContext[attachmentId]) {
-                delete state.distilledContext[attachmentId];
-            }
         },
         toggleProposedChange: (state, action) => {
             const { type, id } = action.payload; // type: 'adds', 'updates', 'deletes'
@@ -519,13 +572,13 @@ export const tripSlice = createSlice({
                 // If newDistilledData returned, save it to state immediately
                 if (action.payload.data && action.payload.data.newDistilledData) {
                     console.log("⚗️ New Distilled Data Received:", action.payload.data.newDistilledData);
-                    if (Array.isArray(action.payload.data.newDistilledData)) {
-                        action.payload.data.newDistilledData.forEach(item => {
-                            if (item.attachmentId && item.summary) {
-                                state.distilledContext[item.attachmentId] = { extractedInfo: item.summary };
-                            }
-                        });
-                    }
+                    // newDistilledData is an object map: { [attachmentId]: { extractedInfo: string } }
+                    Object.entries(action.payload.data.newDistilledData).forEach(([docId, info]) => {
+                        const id = String(docId);
+                        if (id && info.extractedInfo && state.documents[id]) {
+                            state.documents[id].summary = info.extractedInfo;
+                        }
+                    });
                     // Remove from proposedChanges so it doesn't clutter review
                     delete action.payload.data.newDistilledData;
                 }
@@ -571,7 +624,11 @@ export const tripSlice = createSlice({
                     if (data.phrasebook) state.phrasebook = data.phrasebook;
                     if (data.language) state.language = data.language;
                     if (data.exchangeRates) state.exchangeRates = data.exchangeRates;
+                    if (data.documents) state.documents = data.documents;
                     if (data.distilledContext) state.distilledContext = data.distilledContext;
+
+                    // Migrate legacy data to centralized store
+                    migrateToCentralStore(state);
                 }
                 state.isInitialized = true;
             })
@@ -587,7 +644,8 @@ export const {
     setItinerary, setExpenses, setPackingList, setPhrasebook,
     loadFullTrip, setLanguage, setExchangeRates, updateExchangeRate,
     applyProposedChanges, discardProposedChanges, toggleProposedChange,
-    setSelectedModel, updateDistilledContext, clearQuotaError, deleteGlobalAttachment
+    setSelectedModel, clearQuotaError, deleteGlobalAttachment,
+    addDocuments, updateDocument, removeUnusedDocuments
 } = tripSlice.actions;
 
 export default tripSlice.reducer;

@@ -21,6 +21,7 @@ describe('tripSlice reducer', () => {
             },
             itinerary: [],
             preTripTasks: [],
+            documents: {},
             distilledContext: {}
         };
     });
@@ -57,17 +58,29 @@ describe('tripSlice reducer', () => {
     it('should handle deleteGlobalAttachment', () => {
         const stateWithAttachments = {
             ...initialState,
-            itinerary: [{ id: 1, attachments: [{ id: 'att1' }, { id: 'att2' }] }],
-            preTripTasks: [{ id: 2, attachments: [{ id: 'att1' }] }],
-            packingList: [{ category: 'Clothes', items: [{ id: 3, attachments: [{ id: 'att1' }] }] }],
+            documents: {
+                'att1': { id: 'att1', name: 'File 1' },
+                'att2': { id: 'att2', name: 'File 2' }
+            },
+            itinerary: [{ id: 1, attachments: [{ id: 'att1' }, { id: 'att2' }], attachmentIds: ['att1', 'att2'] }],
+            preTripTasks: [{ id: 2, attachments: [{ id: 'att1' }], attachmentIds: ['att1'] }],
+            packingList: [{ category: 'Clothes', items: [{ id: 3, attachments: [{ id: 'att1' }], attachmentIds: ['att1'] }] }],
             distilledContext: { 'att1': { extractedInfo: 'Test' } }
         };
         const state = tripReducer(stateWithAttachments, deleteGlobalAttachment('att1'));
 
+        // Check documents store
+        expect(state.documents['att1']).toBeUndefined();
+        expect(state.documents['att2']).toBeDefined();
+
+        // Check references
+        expect(state.itinerary[0].attachmentIds).toHaveLength(1);
+        expect(state.itinerary[0].attachmentIds[0]).toBe('att2');
+        expect(state.preTripTasks[0].attachmentIds).toHaveLength(0);
+        expect(state.packingList[0].items[0].attachmentIds).toHaveLength(0);
+
+        // Verification of legacy support (if still in reducer)
         expect(state.itinerary[0].attachments).toHaveLength(1);
         expect(state.itinerary[0].attachments[0].id).toBe('att2');
-        expect(state.preTripTasks[0].attachments).toHaveLength(0);
-        expect(state.packingList[0].items[0].attachments).toHaveLength(0);
-        expect(state.distilledContext['att1']).toBeUndefined();
     });
 });

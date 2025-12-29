@@ -21,7 +21,7 @@ const getCategory = (type) => {
 
 export const Itinerary = () => {
     const dispatch = useDispatch();
-    const { itinerary, preTripTasks, packingList, language, tripDetails, exchangeRates = {}, loading } = useSelector(state => state.trip);
+    const { itinerary, preTripTasks, packingList, language, tripDetails, exchangeRates = {}, loading, documents = {} } = useSelector(state => state.trip);
     const [localPrompt, setLocalPrompt] = useState('');
 
     // Filtered list of currencies allowed (Home + Added)
@@ -33,21 +33,7 @@ export const Itinerary = () => {
     const t = LOCALES[language || 'en'];
 
     // Derive all unique attachments for the Library
-    const existingAttachments = useMemo(() => {
-        const unique = new Map();
-        const add = (items) => {
-            if (!items) return;
-            items.forEach(item => {
-                if (item.attachments) {
-                    item.attachments.forEach(att => unique.set(String(att.id), att));
-                }
-            });
-        };
-        add(itinerary);
-        add(preTripTasks);
-        packingList?.forEach(cat => add(cat.items));
-        return Array.from(unique.values());
-    }, [itinerary, preTripTasks, packingList]);
+    // Derived document library is now handled internally by AttachmentManager using Redux state
 
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [aiMode, setAiMode] = useState('add');
@@ -64,7 +50,7 @@ export const Itinerary = () => {
         startDateTime: '', duration: 120, // Duration in minutes
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         location: '', coordinates: null, endLocation: '', endCoordinates: null, notes: '', cost: '', currency: tripDetails.lastUsedCurrency || 'USD', isPaid: false,
-        attachments: [],
+        attachmentIds: [],
         links: []
     });
 
@@ -180,7 +166,7 @@ export const Itinerary = () => {
             cost: item.cost,
             currency: item.currency,
             isPaid: item.isPaid,
-            attachments: item.attachments || [],
+            attachmentIds: item.attachmentIds || [],
             links: item.links || []
         });
         setEditMode(true);
@@ -454,13 +440,17 @@ export const Itinerary = () => {
                                                                     )}
 
                                                                     {/* Attachments & Links Preview */}
-                                                                    {(item.attachments?.length > 0 || item.links?.length > 0) && (
+                                                                    {(item.attachmentIds?.length > 0 || item.links?.length > 0) && (
                                                                         <div className="flex flex-wrap gap-2 mt-2 mb-2">
-                                                                            {item.attachments?.map(a => (
-                                                                                <button key={a.id} onClick={() => setPreviewFile(a)} className="inline-flex items-center gap-1 text-xs bg-slate-100 px-2 py-1 rounded text-slate-600 hover:text-indigo-600 border border-slate-200 transition-colors" title="Preview File">
-                                                                                    <Paperclip size={10} /> {a.name}
-                                                                                </button>
-                                                                            ))}
+                                                                            {item.attachmentIds?.map(id => {
+                                                                                const doc = documents[id];
+                                                                                if (!doc) return null;
+                                                                                return (
+                                                                                    <button key={id} onClick={() => setPreviewFile(doc)} className="inline-flex items-center gap-1 text-xs bg-slate-100 px-2 py-1 rounded text-slate-600 hover:text-indigo-600 border border-slate-200 transition-colors" title="Preview File">
+                                                                                        <Paperclip size={10} /> {doc.name}
+                                                                                    </button>
+                                                                                );
+                                                                            })}
                                                                             {item.links?.map(l => (
                                                                                 <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs bg-indigo-50 px-2 py-1 rounded text-indigo-600 hover:underline border border-indigo-100">
                                                                                     <LinkIcon size={10} /> {l.label}
@@ -694,9 +684,8 @@ export const Itinerary = () => {
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.attachments} & {t.links}</label>
                         <AttachmentManager
-                            attachments={addForm.attachments || []}
+                            attachmentIds={addForm.attachmentIds || []}
                             links={addForm.links || []}
-                            existingAttachments={existingAttachments}
                             onUpdate={(data) => setAddForm({ ...addForm, ...data })}
                             t={t}
                         />

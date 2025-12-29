@@ -6,7 +6,8 @@ import { Button } from './CommonUI';
 export const AiPromptTool = ({ onGenerate, loading, aiMode, setAiMode, t, placeholder = "AI Suggestions...", resetTrigger }) => {
     const [localPrompt, setLocalPrompt] = useState('');
     const [showAttachments, setShowAttachments] = useState(false);
-    const [attachments, setAttachments] = useState([]);
+    const [attachments, setAttachments] = useState([]); // This will now store IDs
+    const [attachmentIds, setAttachmentIds] = useState([]); // Alignment
 
     // Links are not typically used for prompt context yet, but AttachmentManager handles them.
     // We can just ignore them or store them if we want to support URL context later.
@@ -15,13 +16,13 @@ export const AiPromptTool = ({ onGenerate, loading, aiMode, setAiMode, t, placeh
     React.useEffect(() => {
         if (resetTrigger) {
             setLocalPrompt('');
-            setAttachments([]);
+            setAttachmentIds([]);
             setShowAttachments(false);
         }
     }, [resetTrigger]);
 
     const handleGenerate = () => {
-        onGenerate(localPrompt, aiMode, attachments);
+        onGenerate(localPrompt, aiMode, attachmentIds);
         // We probably don't clear prompt/attachments immediately in case user wants to retry or refine,
         // but typically generating consumes the intent. Let's keep them for now or clear?
         // Let's clear for fresh start usually.
@@ -69,9 +70,9 @@ export const AiPromptTool = ({ onGenerate, loading, aiMode, setAiMode, t, placeh
                     >
                         <Paperclip size={14} />
                     </button>
-                    {attachments.length > 0 && (
+                    {attachmentIds.length > 0 && (
                         <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-1.5 py-0.5 rounded-full mr-2">
-                            {attachments.length}
+                            {attachmentIds.length}
                         </span>
                     )}
                 </div>
@@ -97,10 +98,10 @@ export const AiPromptTool = ({ onGenerate, loading, aiMode, setAiMode, t, placeh
                     </button>
                     <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">{t?.contextFiles}</p>
                     <AttachmentManager
-                        attachments={attachments}
+                        attachmentIds={attachmentIds}
                         links={links}
                         onUpdate={(data) => {
-                            if (data.attachments) setAttachments(data.attachments);
+                            if (data.attachmentIds) setAttachmentIds(data.attachmentIds);
                             if (data.links) setLinks(data.links);
                         }}
                         t={t}

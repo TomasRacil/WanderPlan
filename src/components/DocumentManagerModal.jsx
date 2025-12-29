@@ -2,16 +2,15 @@ import React, { useState, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Modal, Button, ConfirmModal } from './CommonUI';
 import { Trash2, FileText, Image as ImageIcon, Eye, AlertCircle, Sparkles, Download } from 'lucide-react';
-import { deleteGlobalAttachment } from '../store/tripSlice';
+import { deleteGlobalAttachment, updateDocument, removeUnusedDocuments } from '../store/tripSlice';
 import { LOCALES } from '../i18n/locales';
 import { FilePreviewModal } from './FilePreviewModal';
 
 export const DocumentManagerModal = ({ isOpen, onClose }) => {
     const dispatch = useDispatch();
-    const { itinerary, preTripTasks, packingList, distilledContext, language } = useSelector(state => state.trip);
+    const { itinerary, preTripTasks, packingList, documents: storedDocuments = {}, language } = useSelector(state => state.trip);
     const t = LOCALES[language || 'en'];
 
-    // State for viewing distilled info
     const [viewingDistilled, setViewingDistilled] = useState(null);
     const [confirmDelete, setConfirmDelete] = useState(null);
     const [previewFile, setPreviewFile] = useState(null);
@@ -26,42 +25,42 @@ export const DocumentManagerModal = ({ isOpen, onClose }) => {
         document.body.removeChild(link);
     };
 
-    // Derive the list of all unique attachments
+    // Calculate metadata for each stored document (refs, sources)
     const documents = useMemo(() => {
-        const docMap = new Map();
+        const docList = Object.values(storedDocuments).map(doc => ({
+            ...doc,
+            refs: 0,
+            sources: new Set()
+        }));
 
-        const processItem = (item, source) => {
-            if (item.attachments) {
-                item.attachments.forEach(att => {
-                    if (!docMap.has(att.id)) {
-                        docMap.set(att.id, {
-                            ...att,
-                            refs: 0,
-                            sources: new Set()
-                        });
-                    }
-                    const doc = docMap.get(att.id);
-                    doc.refs++;
-                    doc.sources.add(source);
-                });
+        const incrementRef = (id, source) => {
+            const doc = docList.find(d => String(d.id) === String(id));
+            if (doc) {
+                doc.refs++;
+                doc.sources.add(source);
             }
         };
 
-        itinerary.forEach(i => processItem(i, t?.itinerary));
-        preTripTasks.forEach(task => processItem(task, t?.tasks));
-        packingList.forEach(cat => (cat.items || []).forEach(item => processItem(item, t?.packing)));
+        itinerary.forEach(i => (i.attachmentIds || []).forEach(id => incrementRef(id, t?.itinerary || 'Itinerary')));
+        preTripTasks.forEach(task => (task.attachmentIds || []).forEach(id => incrementRef(id, t?.tasks || 'Tasks')));
+        packingList.forEach(cat => (cat.items || []).forEach(item => (item.attachmentIds || []).forEach(id => incrementRef(id, t?.packing || 'Packing'))));
 
-        const allDocs = Array.from(docMap.values());
-        console.log("📂 Document Manager - All Docs:", allDocs);
-        console.log("⚗️ Document Manager - Distilled Context:", distilledContext);
-        console.log("🔍 Matching Keys:", allDocs.filter(d => distilledContext && distilledContext[d.id]).map(d => d.id));
-
-        return allDocs;
-    }, [itinerary, preTripTasks, packingList, t, distilledContext]);
+        return docList;
+    }, [itinerary, preTripTasks, packingList, storedDocuments, t]);
 
     const handleDelete = (id) => {
         dispatch(deleteGlobalAttachment(id));
         setConfirmDelete(null);
+    };
+
+    const handleTogglePrint = (id, current) => {
+        dispatch(updateDocument({ id, updates: { includeInPrint: !current } }));
+    };
+
+    const handleCleanup = () => {
+        if (window.confirm(t?.confirmCleanup || "Remove all documents that are not referenced by any itinerary item or task?")) {
+            dispatch(removeUnusedDocuments());
+        }
     };
 
     return (
@@ -94,6 +93,18 @@ export const DocumentManagerModal = ({ isOpen, onClose }) => {
                                             </div>
                                         </div>
                                         <div className="flex gap-1">
+                                            <div className="flex items-center bg-slate-50 px-2 py-1 rounded border border-slate-200 mr-2">
+                                                <input
+                                                    type="checkbox"
+                                                    id={`print-${doc.id}`}
+                                                    checked={doc.includeInPrint}
+                                                    onChange={() => handleTogglePrint(doc.id, doc.includeInPrint)}
+                                                    className="w-3 h-3 rounded text-indigo-600 mr-1.5"
+                                                />
+                                                <label htmlFor={`print-${doc.id}`} className="text-[10px] font-bold text-slate-500 uppercase cursor-pointer select-none">
+                                                    {t?.includeInPrint || "Print"}
+                                                </label>
+                                            </div>
                                             <button
                                                 onClick={() => handleDownload(doc)}
                                                 className="p-1.5 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded transition-colors"
@@ -123,9 +134,9 @@ export const DocumentManagerModal = ({ isOpen, onClose }) => {
                                             ))}
                                         </div>
 
-                                        {distilledContext && distilledContext[doc.id] && (
+                                        {doc.summary && (
                                             <button
-                                                onClick={() => setViewingDistilled({ id: doc.id, name: doc.name, info: distilledContext[doc.id] })}
+                                                onClick={() => setViewingDistilled({ id: doc.id, name: doc.name, info: doc.summary })}
                                                 className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 hover:underline"
                                             >
                                                 <Eye size={10} /> {t?.viewAiData || "View AI Data"}
@@ -137,7 +148,10 @@ export const DocumentManagerModal = ({ isOpen, onClose }) => {
                         </div>
                     )}
 
-                    <div className="flex justify-end pt-4">
+                    <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+                        <Button variant="secondary" onClick={handleCleanup} icon={Trash2} className="text-red-500 hover:bg-red-50 border-red-100">
+                            {t?.cleanupUnused || "Remove Unused"}
+                        </Button>
                         <Button variant="secondary" onClick={onClose}>{t?.close}</Button>
                     </div>
                 </div>
@@ -158,7 +172,7 @@ export const DocumentManagerModal = ({ isOpen, onClose }) => {
                         </div>
                     </div>
                     <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 font-mono text-xs text-slate-600 whitespace-pre-wrap max-h-96 overflow-auto">
-                        {viewingDistilled?.info?.extractedInfo || "No data available."}
+                        {typeof viewingDistilled?.info === 'string' ? viewingDistilled.info : viewingDistilled?.info?.extractedInfo || "No data available."}
                     </div>
                     <div className="flex justify-end">
                         <Button onClick={() => setViewingDistilled(null)}>{t?.close}</Button>

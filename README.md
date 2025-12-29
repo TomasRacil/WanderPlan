@@ -42,12 +42,13 @@
     *   **Save/Load**: Export your entire trip plan to a JSON file or **[NEW] ZIP Archive** (including attachments) and load it back anytime.
     *   **IndexedDB**: Migrated storage layer to handle large file attachments (images/PDFs) without size limits.
 
-*   **File Attachments & Multimodal AI 📎**:
-    *   **[NEW] Multi-file Selection**: Upload multiple images and PDFs at once or attach them from existing items.
-    *   **File Preview**: Built-in modal to preview images and read PDFs without downloading.
-    *   **Multimodal AI**: The AI now "sees" your attached documents (tickets, screenshots) to generate context-aware suggestions.
-    *   **[NEW] Hybrid-Extraction Mode**: Simultaneously processes raw files and extracts dense summaries to minimize future token usage.
-    *   **[NEW] Gemini Stability**: Robust JSON serialization and increased output token limits (16384) ensure reliability during dense document extraction.
+*   **Centralized Document Library �**:
+    *   **[NEW] Project-wide Storage**: All uploaded documents are now stored in a central repository, allowing files to be reused across multiple itinerary events or pre-trip tasks without duplication.
+    *   **[NEW] Library Manager**: A dedicated view to manage all project documents, see AI summaries, and toggle "Include in Print" status for specific files.
+    *   **[NEW] AI Context Optimization**: Dramatically reduced AI payload size by sending document IDs and cached summaries instead of redundant base64 data, significantly improving generation speed.
+    *   **[NEW] Ultra-Robust Migration**: Intelligent engine transitions old trip data and backups into the new structure, merging fragmented data securely.
+    *   **[NEW] Enhanced UX**: Full drag-and-drop support with visual feedback/animations and built-in PDF/Image previews.
+    *   **[NEW] Multimodal AI Integration**: Gemini "sees" and summarizes your documents (tickets, confirmations) to provide context-aware suggestions while minimizing token usage.
 *   **Localization 🌍**:
     *   Full support for **English (EN)** and **Czech (CS)**.
     *   **Deep Localization**: Multilingual support extends to all modal labels, dropdowns (Budget Categories, Event Types), and placeholders.
