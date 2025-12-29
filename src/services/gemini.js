@@ -371,8 +371,6 @@ const enhanceWithGeocoding = async (json, tripDetails, existingItinerary = []) =
 
         if (result) {
             item.location = result.display_name;
-            // Optionally store coordinates if we update the schema later
-            // item.coordinates = { lat: result.lat, lng: result.lon }; 
         } else {
             console.warn("Geocoding given up for:", originalLoc);
         }

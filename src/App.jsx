@@ -26,7 +26,7 @@ import { DocumentManagerModal } from './components/DocumentManagerModal';
 
 function WanderPlanContent() {
   const dispatch = useDispatch();
-  const { tripDetails, expenses, itinerary, preTripTasks, apiKey, customPrompt, packingList, phrasebook, exchangeRates, isInitialized, selectedModel, distilledContext } = useSelector(state => state.trip);
+  const { tripDetails, expenses, itinerary, preTripTasks, apiKey, customPrompt, packingList, phrasebook, exchangeRates, isInitialized, selectedModel, distilledContext, documents } = useSelector(state => state.trip);
   const activeTab = useSelector(state => state.trip.activeTab);
   const showSettings = useSelector(state => state.trip.showSettings);
   const loading = useSelector(state => state.trip.loading);
@@ -56,19 +56,13 @@ function WanderPlanContent() {
   // Auto-save to IndexedDB on change
   React.useEffect(() => {
     if (!isInitialized) return;
-    const tripData = { tripDetails, preTripTasks, itinerary, expenses, packingList, phrasebook, exchangeRates, language, selectedModel, distilledContext };
+    const tripData = { tripDetails, preTripTasks, itinerary, expenses, packingList, phrasebook, exchangeRates, language, selectedModel, distilledContext, documents };
     set('wanderplan_current_trip', tripData).catch(err => console.error('Auto-save failed', err));
-  }, [tripDetails, preTripTasks, itinerary, expenses, packingList, phrasebook, exchangeRates, language, isInitialized, selectedModel, distilledContext]);
+  }, [tripDetails, preTripTasks, itinerary, expenses, packingList, phrasebook, exchangeRates, language, isInitialized, selectedModel, distilledContext, documents]);
 
   React.useEffect(() => {
     dispatch(initializeTrip());
   }, [dispatch]);
-
-  // React.useEffect(() => {
-  //   if (apiKey) {
-  //     logAvailableModels(apiKey);
-  //   }
-  // }, [apiKey]);
 
   const handleSaveTrip = async () => {
     const tripData = {
@@ -83,7 +77,8 @@ function WanderPlanContent() {
       exchangeRates,
       language,
       selectedModel,
-      distilledContext
+      distilledContext,
+      documents
     };
 
     try {

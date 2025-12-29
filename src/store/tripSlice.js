@@ -174,7 +174,6 @@ const migrateToCentralStore = (state) => {
                     item.attachmentIds.push(id);
                 }
             });
-            // delete item.attachments;
         }
     };
 
@@ -206,9 +205,8 @@ const getDefaultState = () => ({
     activeTab: 'overview',
     language: 'en',
     showSettings: false,
-    selectedModel: 'gemini-2-flash-preview', // Default model
+    selectedModel: 'gemini-3-flash-preview', // Default model
     documents: {}, // Centralized storage for ALL documents/attachments
-    // distilledContext: {}, // DEPRECATED: merged into documents
     apiKey: localStorage.getItem('wanderplan_api_key') || '', // API Key can stay in localStorage for now as it is small/global
     loading: false,
     quotaError: null, // Specific state for 429 errors
