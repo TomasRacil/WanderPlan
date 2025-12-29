@@ -8,6 +8,7 @@ import { SectionTitle, Modal, Button, ConfirmModal } from './CommonUI';
 import { setPreTripTasks, updateTripDetails, generateTrip } from '../store/tripSlice';
 import { AttachmentManager } from './AttachmentManager';
 import { FilePreviewModal } from './FilePreviewModal';
+import { AiPromptTool } from './AiPromptTool';
 import { LOCALES } from '../i18n/locales';
 import { getBudgetCategory } from '../utils/helpers';
 
@@ -124,49 +125,33 @@ export const PreTripTasks = () => {
 
     return (
         <div className="animate-fadeIn w-full">
-            <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
+            <div className="mb-6">
                 <SectionTitle
                     icon={CheckSquare}
                     title={t.preTrip}
                     subtitle={t.preTripSubtitle}
-                    subtitleClassName="hidden md:block"
                 />
-                <div className="flex flex-col items-stretch md:items-end gap-3 w-full md:w-auto">
-                    <div className="grid grid-cols-[auto_1fr_auto] grid-rows-2 md:flex md:flex-row items-stretch md:items-center bg-white border border-slate-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all overflow-hidden w-full">
-                        <div className="row-start-1 col-start-1 flex items-center px-3 py-2 border-r border-b md:border-b-0 border-slate-100 bg-slate-50/50">
-                            <Sparkles size={14} className="text-indigo-500" />
-                        </div>
-                        <select
-                            value={aiMode}
-                            onChange={(e) => setAiMode(e.target.value)}
-                            className="row-start-1 col-start-2 bg-transparent px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 outline-none border-b md:border-b-0 border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors"
-                        >
-                            <option value="add">{t.addNew}</option>
-                            <option value="update">{t.updateExisting}</option>
-                            <option value="fill">{t.fillGaps}</option>
-                            <option value="dedupe">{t.removeDuplicates}</option>
-                        </select>
-                        <input
-                            type="text"
-                            value={localPrompt}
-                            onChange={(e) => setLocalPrompt(e.target.value)}
-                            placeholder="AI Suggestions..."
-                            className="row-start-2 col-start-1 col-span-2 bg-transparent px-3 py-2 text-xs outline-none flex-1 min-w-[150px] text-slate-700 placeholder:text-slate-400 font-medium border-r md:border-r-0 border-slate-100"
+            </div>
+
+            {/* AI Generation Tool Section - Full Width */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-8 shadow-sm">
+                <div className="flex flex-col lg:flex-row gap-4 items-start">
+                    <div className="flex-1 w-full">
+                        <AiPromptTool
+                            onGenerate={(prompt, mode, attachments) => dispatch(generateTrip({ targetArea: 'tasks', customPrompt: prompt, aiMode: mode, promptAttachments: attachments }))}
+                            loading={loading}
+                            aiMode={aiMode}
+                            setAiMode={setAiMode}
+                            t={t}
+                            placeholder={t.customPrompt}
                         />
-                        <button
-                            onClick={() => dispatch(generateTrip({ targetArea: 'tasks', customPrompt: localPrompt, aiMode }))}
-                            disabled={loading}
-                            className={`row-start-1 row-span-2 col-start-3 px-4 py-2 text-xs font-bold text-white transition-all flex items-center justify-center gap-2 ${loading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95'}`}
-                        >
-                            <span className={loading ? "" : "md:inline"}>{loading ? "" : "Generate"}</span>
-                        </button>
                     </div>
-                    <div className="flex gap-2">
-                        <Button onClick={() => openModal('add')} icon={Plus} className="flex-1 md:flex-initial h-9 text-xs px-4" variant="secondary">{t.addItem}</Button>
+                    <div className="flex gap-2 w-full lg:w-auto">
+                        <Button onClick={() => openModal('add')} icon={Plus} className="flex-1 h-10 text-xs px-6" variant="secondary">{t.addItem}</Button>
                         {preTripTasks.length > 0 && (
                             <Button
                                 onClick={() => setConfirmDelete({ isOpen: true, id: 'ALL' })}
-                                className="flex-1 md:flex-initial h-9 text-xs px-4 text-red-600 hover:bg-red-50 border-red-200"
+                                className="flex-1 h-10 text-xs px-6 text-red-600 hover:bg-red-50 border-red-200"
                                 variant="secondary"
                             >
                                 <Trash2 size={14} className="mr-1" /> {t.clearList}
@@ -179,7 +164,7 @@ export const PreTripTasks = () => {
             <div className="space-y-4">
                 {preTripTasks.length === 0 && (
                     <div className="p-12 text-center text-slate-400 italic bg-white rounded-xl border border-dashed border-slate-200">
-                        No tasks yet. Add one to get started!
+                        {t.emptyTasks}
                     </div>
                 )}
                 {[...preTripTasks].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1)).map(task => (
@@ -226,7 +211,7 @@ export const PreTripTasks = () => {
                                                 </span>
                                                 {task.cost > 0 && (
                                                     <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${task.isPaid ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-600'} `}>
-                                                        {task.currency} {task.cost.toLocaleString()} {task.isPaid ? '(Paid)' : '(Est)'}
+                                                        {task.currency} {task.cost.toLocaleString()} {task.isPaid ? t.paidSuffix : t.estSuffix}
                                                     </span>
                                                 )}
                                                 {task.deadline && (
@@ -298,7 +283,7 @@ export const PreTripTasks = () => {
             <Modal
                 isOpen={modal.isOpen}
                 onClose={() => setModal({ ...modal, isOpen: false })}
-                title={modal.type === 'add' ? t.addItem : t.editEvent} // Using editEvent for simplicity or add a specific key
+                title={modal.type === 'add' ? t.addItem : t.editTask}
             >
                 <form onSubmit={handleModalSubmit} className="space-y-4">
                     <div className="grid grid-cols-2 gap-3">
@@ -334,7 +319,7 @@ export const PreTripTasks = () => {
                             >
                                 {BUDGET_CATEGORIES.map(c => (
                                     <option key={c} value={c}>
-                                        {t[`cat_${c.toLowerCase().replace(/ & /g, '_').replace(/ /g, '_')} `] || c}
+                                        {t[`cat_${c.toLowerCase().replace(/ & /g, '_').replace(/ /g, '_')}`] || c}
                                     </option>
                                 ))}
                             </select>
@@ -392,7 +377,7 @@ export const PreTripTasks = () => {
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.notes}</label>
                         <textarea
                             className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm h-24 focus:ring-2 focus:ring-indigo-500 outline-none"
-                            placeholder="Extra details, links, etc."
+                            placeholder={t.notesPlaceholder}
                             value={taskForm.notes}
                             onChange={(e) => setTaskForm({ ...taskForm, notes: e.target.value })}
                             rows="2"
@@ -421,8 +406,8 @@ export const PreTripTasks = () => {
                 isOpen={confirmDelete.isOpen}
                 onClose={() => setConfirmDelete({ isOpen: false, id: null })}
                 onConfirm={confirmDeleteTask}
-                title={confirmDelete.id === 'ALL' ? t.clearList : t.confirmDelete}
-                message={confirmDelete.id === 'ALL' ? t.confirmClear : "Are you sure you want to delete this task? This action cannot be undone."}
+                title={confirmDelete.id === 'ALL' ? t.clearList : (t.confirmDelete || 'Confirm Delete')}
+                message={confirmDelete.id === 'ALL' ? t.confirmClear : (t.confirmDeleteTask || "Are you sure you want to delete this task? This action cannot be undone.")}
             />
 
             <FilePreviewModal

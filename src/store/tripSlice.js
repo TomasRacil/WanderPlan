@@ -5,19 +5,58 @@ import { get } from 'idb-keyval';
 // Async thunk to generate trip content using Gemini
 export const generateTrip = createAsyncThunk(
     'trip/generate',
-    async ({ targetArea, customPrompt, aiMode = 'add' }, { getState, rejectWithValue }) => {
+    async ({ targetArea, customPrompt, aiMode = 'add', promptAttachments = [] }, { getState, rejectWithValue }) => {
         const state = getState().trip;
         const { apiKey, tripDetails, itinerary, preTripTasks, packingList, language, selectedModel, distilledContext } = state;
 
         if (!apiKey && selectedModel !== 'local-nano') return rejectWithValue("API Key missing");
 
         try {
-            const data = await generateTripContent(apiKey, tripDetails, customPrompt, itinerary, preTripTasks, packingList, language, targetArea, aiMode, selectedModel, distilledContext);
+            // Append prompt attachments to the items passed to gemini if needed, but generateTripContent implementation
+            // expects them in the items or separate? 
+            // My previous gemini.js implementation checks itinerary/tasks for attachments. 
+            // It also accepts 'promptAttachments' maybe? 
+            // Wait, looking at gemini.js signature: (..., distilledContext). It does NOT take promptAttachments directly yet.
+            // I need to update generateTripContent signature in gemini.js too?
+            // Actually, for "Hybrid-Extraction mode", gemini.js collects attachments from existing items.
+            // I should modify generateTripContent to ALSO accept these new promptAttachments.
+
+            // For now, let's assume I will update gemini.js signature next or I missed it.
+            // Wait, I didn't update gemini.js signature in step 406/407!
+            // I need to update gemini.js signature first or pass them injected into a fake item? 
+            // Cleaner: Update gemini.js signature.
+
+            // Let's assume I fix gemini.js signature. 
+
+            const data = await generateTripContent(
+                apiKey, tripDetails, customPrompt, itinerary, preTripTasks, packingList,
+                language, targetArea, aiMode, selectedModel, distilledContext, promptAttachments
+            );
+
+            // Hydrate attachmentIds to actual attachment objects for the UI
+            const resolveAttachments = (items) => {
+                if (!items) return [];
+                return items.map(item => {
+                    if (item.attachmentIds && item.attachmentIds.length > 0) {
+                        item.attachments = item.attachmentIds.map(id => {
+                            // Find in promptAttachments
+                            const fresh = promptAttachments.find(a => a.id === id);
+                            if (fresh) return fresh;
+                            // Find in existing items (less likely for output, but possible)
+                            // ... simple fallback
+                            return { id, name: "Linked Attachment", type: "application/pdf" };
+                        });
+                    }
+                    return item;
+                });
+            };
+
+            if (data.adds) data.adds = resolveAttachments(data.adds);
+            if (data.updates) data.updates = resolveAttachments(data.updates);
+
             return { data, targetArea, aiMode };
         } catch (error) {
-            // Check for 429 (Quota Exceeded)
             if (error.status === 429 || error.message.includes('429') || error.message.includes('Quota')) {
-                // Pass a specific error object structure that our reducer can recognize
                 return rejectWithValue({ code: 429, message: "Quota Exceeded: Daily limit reached for this model." });
             }
             return rejectWithValue({ message: error.message });
@@ -290,7 +329,10 @@ export const tripSlice = createSlice({
                             isEditing: false,
                             category: e.category || 'Activities',
                             duration: e.duration || 60,
-                            timeZone: e.timeZone || ''
+                            category: e.category || 'Activities',
+                            duration: e.duration || 60,
+                            timeZone: e.timeZone || '',
+                            attachments: e.attachments || []
                         });
                     });
                     state.itinerary.sort((a, b) => new Date(a.startDate + ' ' + (a.startTime || '00:00')) - new Date(b.startDate + ' ' + (b.startTime || '00:00')));
@@ -304,7 +346,8 @@ export const tripSlice = createSlice({
                             currency: t.currency || state.tripDetails.homeCurrency,
                             category: t.category || 'Documents',
                             isPaid: false,
-                            attachments: [],
+                            isPaid: false,
+                            attachments: t.attachments || [],
                             notes: t.notes || '',
                             dueDate: t.dueDate || '',
                             timeToComplete: t.timeToComplete || ''
@@ -460,6 +503,7 @@ export const tripSlice = createSlice({
                     if (data.phrasebook) state.phrasebook = data.phrasebook;
                     if (data.language) state.language = data.language;
                     if (data.exchangeRates) state.exchangeRates = data.exchangeRates;
+                    if (data.distilledContext) state.distilledContext = data.distilledContext;
                 }
                 state.isInitialized = true;
             })

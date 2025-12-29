@@ -35,14 +35,28 @@ const getSchemaForArea = (targetArea, aiMode) => {
     }
 };
 
-export const generateTripContent = async (apiKey, tripDetails, customPrompt, itinerary, preTripTasks, packingList, language = 'en', targetArea = 'all', aiMode = 'add', selectedModel = 'gemini-3-flash-preview', distilledContext = {}) => {
-    const existingItinerary = (itinerary || []).map(i =>
-        `{"id": "${i.id}", "title": "${i.title}", "date": "${i.startDate}", "time": "${i.startTime}", "duration": ${i.duration || 60}, "type": "${i.type}", "category": "${i.category}", "cost": ${i.cost || 0}, "currency": "${i.currency}", "location": "${i.location}"}`
-    ).join('\n');
+export const generateTripContent = async (apiKey, tripDetails, customPrompt, itinerary, preTripTasks, packingList, language = 'en', targetArea = 'all', aiMode = 'add', selectedModel = 'gemini-3-flash-preview', distilledContext = {}, promptAttachments = []) => {
+    const existingItinerary = JSON.stringify((itinerary || []).map(i => ({
+        id: i.id,
+        title: i.title,
+        date: i.startDate,
+        time: i.startTime,
+        duration: i.duration || 60,
+        type: i.type,
+        category: i.category,
+        cost: i.cost || 0,
+        currency: i.currency,
+        location: i.location
+    })));
 
-    const existingTasks = (preTripTasks || []).map(t =>
-        `{"id": "${t.id}", "text": "${t.text}", "status": "${t.done ? 'Done' : 'Pending'}", "cost": ${t.cost || 0}, "currency": "${t.currency}", "category": "${t.category}"}`
-    ).join('\n');
+    const existingTasks = JSON.stringify((preTripTasks || []).map(t => ({
+        id: t.id,
+        text: t.text,
+        status: t.done ? 'Done' : 'Pending',
+        cost: t.cost || 0,
+        currency: t.currency,
+        category: t.category
+    })));
 
     const existingPacking = JSON.stringify((packingList || []).map(cat => ({
         id: cat.id,
@@ -58,7 +72,24 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
             Object.entries(distilledContext).map(([id, info]) => `Attachment ${id}: ${info.extractedInfo}`).join('\n');
     }
 
+    const systemPrompt = `
+    You are an expert travel assistant for the app "WanderPlan".
+    Your goal is to modify the users trip based on their request.
+    
+    CRITICAL INSTRUCTIONS:
+    1.  **Attachments**: If the user provides documents (PDFs/Images), you MUST use them to extract relevant details (flight times, hotel names, costs).
+        -   If you create or update items based on these documents, you MUST include their IDs in the \`attachmentIds\` array for that item.
+        -   The attachment IDs will be provided in the text context as "[Attachment ID: <id>]".
+    2.  **Reasoning**: You MUST provide a \`changeSummary\` string explaining your changes and logic.
+    3.  **Strict JSON**: valid JSON only, no markdown blocks.
+    4.  **Dates**: The current date is ${new Date().toISOString().split('T')[0]}.
+    5.  **Context**: 
+        -   Distilled Context from previous attachments: ${JSON.stringify(distilledContext)}
+        -   Current Trip Details: ${JSON.stringify(tripDetails)}
+    `;
+
     const context = `
+        SYSTEM PROMPT: ${systemPrompt}
         Current Trip: ${tripDetails.destination} (${tripDetails.startDate} to ${tripDetails.endDate})
         Origin: ${tripDetails.origin || 'Unknown'}
         Travel Style: ${tripDetails.travelStyle}
@@ -74,7 +105,7 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
     `;
 
     const instructions = {
-        add: "Focus ONLY on suggesting NEW items that are not in the list. Suggest 3-5 high quality items.",
+        add: "Focus ONLY on suggesting NEW items that are not in the list.",
         update: "Focus ONLY on UPDATING existing items. Used their 'id' to specify which item you are changing. Return ONLY the fields that changed.",
         fill: "Look for gaps and return NEW items or UPDATES to existing placeholders to fill those gaps.",
         dedupe: "Identify exact or semantic duplicates. Return ONLY a list of IDs to remove."
@@ -82,16 +113,19 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
 
     // Identify Fresh Attachments (Lazy Distillation)
     const allAttachments = [];
+    const seenAttachmentIds = new Set();
+
     const collectAttachments = (items) => {
         if (!items) return;
         items.forEach(item => {
             if (item.attachments && item.attachments.length > 0) {
                 item.attachments.forEach(att => {
-                    // Check if already distilled
-                    if (att.id && distilledContext[att.id]) return;
+                    // Check if already distilled or already added to this request
+                    if (att.id && (distilledContext[att.id] || seenAttachmentIds.has(att.id))) return;
 
-                    const base64Data = att.data.split(',')[1];
+                    const base64Data = att.data?.split(',')[1];
                     if (base64Data) {
+                        seenAttachmentIds.add(att.id);
                         allAttachments.push({ text: `[Attachment ID: ${att.id}]` });
                         allAttachments.push({
                             inlineData: {
@@ -108,6 +142,25 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
     collectAttachments(itinerary);
     collectAttachments(preTripTasks);
 
+    // Also collect from current prompt
+    if (promptAttachments && promptAttachments.length > 0) {
+        promptAttachments.forEach(att => {
+            if (seenAttachmentIds.has(att.id)) return;
+
+            const base64Data = att.data?.split(',')[1];
+            if (base64Data) {
+                seenAttachmentIds.add(att.id);
+                allAttachments.push({ text: `[Attachment ID: ${att.id}]` });
+                allAttachments.push({
+                    inlineData: {
+                        data: base64Data,
+                        mimeType: att.type
+                    },
+                });
+            }
+        });
+    }
+
     let systemInstruction = "";
     if (allAttachments.length > 0) {
         systemInstruction = `You are in Hybrid-Extraction mode. For any provided raw files, perform the requested task AND extract a dense, comprehensive summary of ALL information relevant to planning and executing a trip. 
@@ -123,9 +176,11 @@ Reflect this extraction in the 'newDistilledData' array.
     // --- Schema Construction ---
     const baseSchemaProperties = getSchemaForArea(targetArea, aiMode);
 
-    // Add 'deletes' globally if not phrasebook and not already handled by specific schema (though specific schemas handle dedupe now)
-    // Actually, modular schemas handle dedupe internally now. 
-    // We can just rely on baseSchemaProperties.
+    // Add changeSummary globally
+    baseSchemaProperties.changeSummary = {
+        type: "STRING",
+        description: "A brief explanation of the changes made, including why specific items were added, updated, or deleted, especially if based on provided attachments."
+    };
 
     // Add 'newDistilledData' if needed
     if (allAttachments.length > 0) {
@@ -141,10 +196,6 @@ Reflect this extraction in the 'newDistilledData' array.
             }
         };
     }
-
-    // Filter allowed keys based on aiMode if strictly needed, but for Schema it's often better to allow the structure and just prompt effectively.
-    // However, we can enforce strictness by only including relevant keys in the schema.
-    // simpler approach: The schema defines the *shape* of the output. The *prompt* defines the *intent*.
 
     const finalSchema = {
         type: "OBJECT",
@@ -203,7 +254,8 @@ Reflect this extraction in the 'newDistilledData' array.
             contents: [{ role: "user", parts: promptParts }],
             generationConfig: {
                 responseMimeType: "application/json",
-                responseSchema: finalSchema
+                responseSchema: finalSchema,
+                maxOutputTokens: 16384
             }
         })
     });
@@ -238,9 +290,108 @@ Reflect this extraction in the 'newDistilledData' array.
             json.newDistilledData = distilledMap;
         }
 
+        // Post-Processing: Geocoding
+        await enhanceWithGeocoding(json, tripDetails, itinerary);
+
         return json;
     } catch (e) {
         console.error("JSON Parse Error:", e, "Failed Text:", text);
         throw e;
     }
+};
+
+// Helper for nominatim
+const enhanceWithGeocoding = async (json, tripDetails, existingItinerary = []) => {
+    const itemsToGeocode = [];
+
+    if (json.adds) itemsToGeocode.push(...json.adds);
+    if (json.updates) {
+        json.updates.forEach(u => {
+            if (u.fields && u.fields.location) itemsToGeocode.push(u.fields);
+        });
+    }
+
+    // Limit to avoiding rate limits or excessive calls
+    const queue = itemsToGeocode.filter(i => i.location && !i.coordinates).slice(0, 5);
+
+    // Helper to perform fetch
+    const searchNominatim = async (query) => {
+        try {
+            // Simple delay to be nice to OSM
+            await new Promise(r => setTimeout(r, 250));
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+            const data = await res && res.json ? await res.json() : null;
+            return data && data[0] ? data[0] : null;
+        } catch (e) {
+            console.warn("Geocoding fetch failed for", query, e);
+            return null;
+        }
+    };
+
+    // Helper to find context location from nearby events
+    const findContextLocation = (targetDate) => {
+        if (!existingItinerary || existingItinerary.length === 0 || !targetDate) return null;
+        // Find closest event
+        const target = new Date(targetDate).getTime();
+        const closestOptions = existingItinerary
+            .filter(i => i.location)
+            .map(i => ({ loc: i.location, diff: Math.abs(new Date(i.startDate).getTime() - target) }))
+            .sort((a, b) => a.diff - b.diff);
+
+        // Return the best context (top match)
+        return closestOptions.length > 0 ? closestOptions[0].loc : null;
+    };
+
+    await Promise.all(queue.map(async (item) => {
+        let result = null;
+        const originalLoc = item.location;
+        const localContext = findContextLocation(item.startDate);
+        const destination = tripDetails?.destination;
+
+        // Strategy 1: Trip Destination Constraint (Highest Priority)
+        // Solves "Beach" -> "Beach, New Zealand" vs "Beach, UK"
+        if (!result && destination) {
+            if (!originalLoc.toLowerCase().includes(destination.toLowerCase())) {
+                const query = `${originalLoc}, ${destination}`;
+                console.log("Geocoding Strategy 1 (Global Dest):", query);
+                result = await searchNominatim(query);
+            }
+        }
+
+        // Strategy 2: Local Context Constraint (Previous/Next Event)
+        // Appends the CITY/Region of the closest event if possible. 
+        // Heuristic: Take the last part of the context string (often country or city)
+        if (!result && localContext) {
+            // Very naive extraction: take the last 2 parts of the address
+            const parts = localContext.split(',').map(s => s.trim());
+            const shortContext = parts.slice(-2).join(', '); // e.g. "Matamata, New Zealand"
+            if (shortContext && shortContext !== destination) {
+                const query = `${originalLoc}, ${shortContext}`;
+                console.log("Geocoding Strategy 2 (Local Context):", query);
+                result = await searchNominatim(query);
+            }
+        }
+
+        // Strategy 3: Exact Match (Original)
+        if (!result) {
+            console.log("Geocoding Strategy 3 (Original):", originalLoc);
+            result = await searchNominatim(originalLoc);
+        }
+
+        // Strategy 4: Simplify (First Part + Destination)
+        if (!result && originalLoc.includes(',') && destination) {
+            const firstPart = originalLoc.split(',')[0].trim();
+            const querySimple = `${firstPart}, ${destination}`;
+            console.log("Geocoding Strategy 4 (Simplify + Dest):", querySimple);
+            result = await searchNominatim(querySimple);
+        }
+
+        if (result) {
+            item.location = result.display_name;
+            // Optionally store coordinates if we update the schema later
+            // item.coordinates = { lat: result.lat, lng: result.lon }; 
+        } else {
+            console.warn("Geocoding given up for:", originalLoc);
+        }
+    }));
 };

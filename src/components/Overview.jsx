@@ -11,11 +11,14 @@ import { LOCALES } from '../i18n/locales';
 
 export const Overview = ({ onSave, onLoad }) => {
   const dispatch = useDispatch();
-  const { tripDetails, customPrompt, loading, phrasebook, expenses, itinerary, preTripTasks } = useSelector(state => state.trip);
+  const { tripDetails, customPrompt, loading, phrasebook, expenses, itinerary, preTripTasks, exchangeRates = {} } = useSelector(state => state.trip);
   const language = useSelector(state => state.trip.language || 'en');
   const t = LOCALES[language];
 
-  const budgetTotals = calculateBudgetTotals(expenses, itinerary, preTripTasks, tripDetails);
+  const budgetTotals = calculateBudgetTotals(expenses, itinerary, preTripTasks, tripDetails, exchangeRates);
+  const isUnlimited = tripDetails.budget === 'Unlimited';
+  const totalBudget = isUnlimited ? 0 : (parseCost(tripDetails.budget) || 1);
+  const percentage = isUnlimited ? 0 : Math.min(100, (budgetTotals.totalSpent / totalBudget) * 100);
 
   // Auto-refresh timer to update "Now" for focus logic
   const [now, setNow] = React.useState(new Date());
@@ -105,12 +108,12 @@ export const Overview = ({ onSave, onLoad }) => {
             </div>
             <button
               onClick={() => {
-                const url = prompt("Enter Image URL for cover:");
+                const url = prompt(t.changeCover + ":");
                 if (url) dispatch(updateTripDetails({ coverImage: url }));
               }}
               className="ml-auto text-xs bg-black/40 hover:bg-black/60 px-2 py-1 rounded flex items-center gap-1"
             >
-              <Camera size={12} /> Change Cover
+              <Camera size={12} /> {t.changeCover}
             </button>
           </div>
         </div>
@@ -144,7 +147,7 @@ export const Overview = ({ onSave, onLoad }) => {
                 <button
                   onClick={() => dispatch(setPreTripTasks(preTripTasks.map(t => t.id === focusItem.id ? { ...t, done: true } : t)))}
                   className="p-2 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 rounded-lg transition-colors group/btn"
-                  title="Mark as Done"
+                  title={t.allDone}
                 >
                   <CheckSquare size={20} className="group-hover/btn:scale-110 transition-transform" />
                 </button>
@@ -298,15 +301,18 @@ export const Overview = ({ onSave, onLoad }) => {
           <Card className="p-4 border-slate-200">
             <div className="flex justify-between items-start mb-2">
               <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2"><Wallet size={16} className="text-indigo-600" /> {t.budget_title}</h4>
-              <button onClick={() => dispatch(setActiveTab('budget'))} className="text-xs text-indigo-600 hover:underline">Manage</button>
+              <button onClick={() => dispatch(setActiveTab('budget'))} className="text-xs text-indigo-600 hover:underline">{t.manage}</button>
             </div>
             <div className="text-xs text-slate-500">{t.spent}: <span className="font-bold text-slate-700">{formatMoney(budgetTotals.totalSpent, tripDetails.homeCurrency)}</span></div>
-            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden mt-2">
-              <div
-                className={`h-full rounded-full ${budgetTotals.remaining < 0 ? 'bg-red-500' : 'bg-emerald-500'}`}
-                style={{ width: `${Math.min(100, (budgetTotals.totalSpent / (parseCost(tripDetails.budget) || 1)) * 100)}%` }}
-              ></div>
-            </div>
+            {!isUnlimited && (
+              <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden mt-2">
+                <div
+                  className={`h-full rounded-full ${budgetTotals.remaining < 0 ? 'bg-red-500' : 'bg-emerald-500'}`}
+                  style={{ width: `${percentage}%` }}
+                ></div>
+              </div>
+            )}
+            {isUnlimited && <div className="text-xs text-emerald-600 font-bold mt-2 uppercase tracking-wider">{t.unlimitedBudget}</div>}
           </Card>
 
 
@@ -326,11 +332,11 @@ export const Overview = ({ onSave, onLoad }) => {
                 <h4 className="font-bold text-emerald-800 text-sm flex items-center gap-2">
                   <Languages size={14} className="text-emerald-600" /> {phrasebook.language}
                 </h4>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex gap-1">
                   <button
                     onClick={() => dispatch(generateTrip({ targetArea: 'phrasebook' }))}
                     className="text-emerald-600 hover:text-emerald-800 p-1 hover:bg-emerald-100 rounded-md transition-all"
-                    title="Refresh Phrases"
+                    title={t.refreshPhrases}
                     disabled={loading}
                   >
                     <Sparkles size={14} />
@@ -373,7 +379,7 @@ export const Overview = ({ onSave, onLoad }) => {
                 loading={loading}
                 icon={Sparkles}
               >
-                Generate Phrases
+                {t.generatePhrases}
               </Button>
             </Card>
           )}

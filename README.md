@@ -43,26 +43,30 @@
     *   **IndexedDB**: Migrated storage layer to handle large file attachments (images/PDFs) without size limits.
 
 *   **File Attachments & Multimodal AI 📎**:
-    *   **Attachments**: Upload images and PDFs to any itinerary event or pre-trip task.
+    *   **[NEW] Multi-file Selection**: Upload multiple images and PDFs at once or attach them from existing items.
     *   **File Preview**: Built-in modal to preview images and read PDFs without downloading.
-    *   **Multimodal AI**: The AI now "sees" your attached images (tickets, screenshots) to generate context-aware suggestions.
+    *   **Multimodal AI**: The AI now "sees" your attached documents (tickets, screenshots) to generate context-aware suggestions.
+    *   **[NEW] Hybrid-Extraction Mode**: Simultaneously processes raw files and extracts dense summaries to minimize future token usage.
+    *   **[NEW] Gemini Stability**: Robust JSON serialization and increased output token limits (16384) ensure reliability during dense document extraction.
 *   **Localization 🌍**:
     *   Full support for **English (EN)** and **Czech (CS)**.
-    *   **[NEW] Deep Localization**: Multilingual support now extends to all modal labels, dropdowns (Budget Categories, Event Types), and placeholders.
+    *   **Deep Localization**: Multilingual support extends to all modal labels, dropdowns (Budget Categories, Event Types), and placeholders.
     *   Language switcher in the header.
-
 *   **Interactive Map 🗺️**:
-    *   **[NEW] Date Navigation**: Filter markers by specific days using `<` and `>` controls or view the "Whole Trip".
+    *   **Date Navigation**: Filter markers by specific days or view the "Whole Trip".
+    *   **[NEW] High-Precision Geocoding**: Integrated Nominatim (OpenStreetMap) with **smart retry strategies** (context-aware search) for precisely pinned event locations.
     *   Visualize your itinerary with an interactive map (Leaflet).
-    *   **[NEW]** **Photon API Integration**: High-reliability geocoding powered by Photon (OpenStreetMap data), bypassing standard CORS/blocking issues.
+    *   **Photon API Integration**: High-reliability geocoding powered by Photon (OpenStreetMap data) for primary search.
 *   **PWA Support 📲**:
-    *   **[NEW] Manual Updates**: A notification and "Update" button in settings appear when a new version is available.
+    *   **Manual Updates**: A notification and "Update" button in settings appear when a new version is available.
     *   Installable as a desktop or mobile application for offline access.
 *   **Enhanced UI/UX 🎨**:
-    *   **[NEW] Mobile-First Navigation**: Dedicated bottom navigation bar for mobile users.
-    *   **[NEW] Optimized Headers**: Clean, 3-row responsive headers for all list views.
+    *   **[NEW] Unified AI Tool**: A redesigned, full-width AI Generation section with integrated mode selection and attachment management.
+    *   **Mobile-First Navigation**: Dedicated bottom navigation bar for mobile users.
+    *   **Optimized Headers**: Clean, 3-row responsive headers for all list views with consistent alignment.
+    *   **Unlimited Budget Support**: Set budgets to "Unlimited" for flexible trip planning with visual '∞' indicators.
     *   Modern Modal interface and improved DateTime pickers.
-    *   **[NEW] Enhanced Overview**: Tips rendered with markdown, direct task completion from dashboard, and improved "Next Focus" logic.
+    *   **Enhanced Overview**: Tips rendered with markdown, direct task completion from dashboard, and improved "Next Focus" logic.
     *   Task Time Estimates for better pre-trip planning.
 
 ### 🚧 Future Roadmap

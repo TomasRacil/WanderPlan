@@ -14,6 +14,7 @@ import { RefreshCw, Coins } from 'lucide-react';
 export const Budget = () => {
     const dispatch = useDispatch();
     const { expenses, itinerary, preTripTasks, tripDetails, language, exchangeRates = {} } = useSelector(state => state.trip);
+    const t = LOCALES[language || 'en'];
 
     // Filtered list of currencies allowed (Home + Added)
     const activeCurrencies = ALL_CURRENCIES.filter(c =>
@@ -28,8 +29,6 @@ export const Budget = () => {
     const [isRatesModalOpen, setIsRatesModalOpen] = useState(false);
     const [loadingRates, setLoadingRates] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, id: null });
-
-    const t = LOCALES[language || 'en'];
 
     // Pass exchangeRates to calculateBudgetTotals
     const totals = calculateBudgetTotals(expenses, itinerary, preTripTasks, tripDetails, exchangeRates);
@@ -222,7 +221,7 @@ export const Budget = () => {
                                 <span className="text-lg font-bold text-slate-200">{formatMoney(totals.projectedTotal, tripDetails.homeCurrency)}</span>
                             </div>
                             <Button variant="secondary" onClick={() => setIsRatesModalOpen(true)} className="text-[10px] py-1 px-2" icon={Plus}>
-                                Add Currency
+                                {t.addCurrency}
                             </Button>
                         </div>
                     </div>
@@ -363,7 +362,7 @@ export const Budget = () => {
             </Modal>
 
             {/* Edit Expense Modal */}
-            <Modal isOpen={isEditModalOpen} onClose={() => { setIsEditModalOpen(false); setEditingItem(null); }} title={t.editEvent || "Edit Transaction"}>
+            <Modal isOpen={isEditModalOpen} onClose={() => { setIsEditModalOpen(false); setEditingItem(null); }} title={t.editTransaction || "Edit Transaction"}>
                 {editingItem && (
                     <form onSubmit={handleEditExpense} className="space-y-4">
                         <div>
@@ -404,7 +403,7 @@ export const Budget = () => {
                 )}
             </Modal>
             {/* Exchange Rates Modal */}
-            <Modal isOpen={isRatesModalOpen} onClose={() => setIsRatesModalOpen(false)} title="Exchange Rates">
+            <Modal isOpen={isRatesModalOpen} onClose={() => setIsRatesModalOpen(false)} title={t.exchangeRatesTitle || "Exchange Rates"}>
                 <div className="space-y-6">
                     <div>
                         <p className="text-sm text-slate-500 mb-3">{t.baseCurrency}: <span className="font-bold">{tripDetails.homeCurrency}</span></p>
@@ -425,7 +424,7 @@ export const Budget = () => {
                                     onChange={handleAddCurrency}
                                     labelKey="name"
                                     valueKey="code"
-                                    placeholder="Select Currency to Add"
+                                    placeholder={t.selectCurrencyToAdd || "Select Currency to Add"}
                                     variant="light"
                                     renderOption={(opt) => `${opt.code} - ${opt.name}`}
                                 />
@@ -446,7 +445,7 @@ export const Budget = () => {
                                         value={rate || ''}
                                         onChange={(e) => handleRateUpdate(currency, e.target.value)}
                                         className="w-24 p-1.5 text-sm border border-slate-200 rounded text-right focus:ring-1 focus:ring-indigo-500 outline-none"
-                                        placeholder="Rate"
+                                        placeholder={t.ratePlaceholder || "Rate"}
                                     />
                                     <span className="text-xs text-slate-400">{currency}</span>
                                     <button onClick={() => {
@@ -467,7 +466,7 @@ export const Budget = () => {
                 isOpen={confirmDelete.isOpen}
                 onClose={() => setConfirmDelete({ isOpen: false, id: null })}
                 onConfirm={handleConfirmDelete}
-                title={t.confirmDelete || 'Delete Expense'}
+                title={t.deleteExpense || 'Delete Expense'}
                 message={t.confirmDeleteMsg || 'Are you sure you want to delete this expense? This action cannot be undone.'}
             />
         </div >

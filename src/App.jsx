@@ -174,7 +174,7 @@ function WanderPlanContent() {
                  Let's add a small indicator if update is ready */}
             {needRefresh && (
               <button onClick={() => updateServiceWorker(true)} className="flex items-center gap-1 bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full text-xs font-bold animate-pulse hover:bg-indigo-200">
-                <ArrowDownCircle size={14} /> <span className="hidden sm:inline">Update</span>
+                <ArrowDownCircle size={14} /> <span className="hidden sm:inline">{t.update}</span>
               </button>
             )}
 
@@ -232,7 +232,7 @@ function WanderPlanContent() {
           <div className="bg-white p-6 rounded-2xl shadow-2xl flex flex-col items-center">
             <Loader className="animate-spin text-indigo-600 mb-4" size={48} />
             <p className="text-lg font-bold text-slate-700">{t.generating}</p>
-            <p className="text-sm text-slate-500">This may take a few seconds.</p>
+            <p className="text-sm text-slate-500">{t.generatingSub}</p>
           </div>
         </div>
       )}
@@ -245,12 +245,12 @@ function WanderPlanContent() {
               type="password"
               value={apiKey}
               onChange={(e) => dispatch(setApiKey(e.target.value))}
-              placeholder="Gemini API Key"
+              placeholder={t.geminiApiKey || "Gemini API Key"}
               className="w-full p-2 border rounded-lg mb-4 text-sm"
             />
 
             <div className="mb-4">
-              <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">AI Model</h3>
+              <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">{t.aiModel}</h3>
               <select
                 value={selectedModel}
                 onChange={(e) => dispatch(setSelectedModel(e.target.value))}
@@ -267,7 +267,7 @@ function WanderPlanContent() {
             </div>
 
             <div className="mb-4">
-              <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">Language</h3>
+              <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">{t.language || "Language"}</h3>
               <div className="flex gap-2">
                 <button onClick={() => dispatch(setLanguage('en'))} className={`flex-1 py-2 text-sm font-bold rounded-lg border ${language === 'en' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-600'}`}>English</button>
                 <button onClick={() => dispatch(setLanguage('cs'))} className={`flex-1 py-2 text-sm font-bold rounded-lg border ${language === 'cs' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-600'}`}>Čeština</button>
@@ -278,17 +278,17 @@ function WanderPlanContent() {
             {needRefresh && (
               <div className="mb-4 p-3 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-bold text-indigo-800">Update Available</p>
-                  <p className="text-xs text-indigo-600">A new version of the app is ready.</p>
+                  <p className="text-sm font-bold text-indigo-800">{t.updateAvailable}</p>
+                  <p className="text-xs text-indigo-600">{t.pwaUpdateMsg}</p>
                 </div>
                 <Button onClick={() => updateServiceWorker(true)} icon={RefreshCw} className="py-1 px-3 text-xs">
-                  Update
+                  {t.update}
                 </Button>
               </div>
             )}
 
             <div className="flex justify-end gap-2 mt-6">
-              <Button variant="secondary" onClick={() => dispatch(setShowSettings(false))}>Close</Button>
+              <Button variant="secondary" onClick={() => dispatch(setShowSettings(false))}>{t.close}</Button>
             </div>
           </div>
         </div>

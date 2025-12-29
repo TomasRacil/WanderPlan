@@ -20,7 +20,8 @@ export const getItinerarySchema = (aiMode) => {
                     endLocation: { type: "STRING" },
                     timeZone: { type: "STRING" },
                     notes: commonProperties.notes,
-                    category: { type: "STRING" }
+                    category: { type: "STRING" },
+                    attachmentIds: commonProperties.attachmentIds
                 },
                 required: ["title", "startDate", "type"]
             }
@@ -43,7 +44,8 @@ export const getItinerarySchema = (aiMode) => {
                             duration: { type: "NUMBER" },
                             cost: commonProperties.cost,
                             location: commonProperties.location,
-                            notes: commonProperties.notes
+                            notes: commonProperties.notes,
+                            attachmentIds: commonProperties.attachmentIds
                         }
                     }
                 },

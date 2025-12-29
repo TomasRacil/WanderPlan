@@ -15,7 +15,8 @@ export const getTasksSchema = (aiMode) => {
                     category: { type: "STRING" },
                     dueDate: { type: "STRING" },
                     notes: commonProperties.notes,
-                    timeToComplete: { type: "STRING" }
+                    timeToComplete: { type: "STRING" },
+                    attachmentIds: commonProperties.attachmentIds
                 },
                 required: ["text"]
             }
@@ -35,7 +36,8 @@ export const getTasksSchema = (aiMode) => {
                             text: { type: "STRING" },
                             cost: commonProperties.cost,
                             done: { type: "BOOLEAN" },
-                            notes: commonProperties.notes
+                            notes: commonProperties.notes,
+                            attachmentIds: commonProperties.attachmentIds
                         }
                     }
                 },

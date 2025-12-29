@@ -10,7 +10,8 @@ export const getPackingSchema = (aiMode) => {
                 type: "OBJECT",
                 properties: {
                     category: { type: "STRING" },
-                    items: { type: "ARRAY", items: { type: "STRING" } }
+                    items: { type: "ARRAY", items: { type: "STRING" } },
+                    attachmentIds: commonProperties.attachmentIds
                 },
                 required: ["category", "items"]
             }
@@ -25,7 +26,8 @@ export const getPackingSchema = (aiMode) => {
                 properties: {
                     id: commonProperties.ids,
                     newItems: { type: "ARRAY", items: { type: "STRING" } },
-                    removeItems: { type: "ARRAY", items: { type: "STRING" } }
+                    removeItems: { type: "ARRAY", items: { type: "STRING" } },
+                    attachmentIds: commonProperties.attachmentIds
                 },
                 required: ["id"]
             }

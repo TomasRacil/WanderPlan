@@ -12,6 +12,7 @@ import { LOCALES } from '../i18n/locales';
 import { LocationAutocomplete } from './LocationAutocomplete';
 import { AttachmentManager } from './AttachmentManager';
 import { FilePreviewModal } from './FilePreviewModal';
+import { AiPromptTool } from './AiPromptTool';
 
 // Infer category from type
 const getCategory = (type) => {
@@ -161,7 +162,7 @@ export const Itinerary = () => {
         // Basic Validation
         if (!addForm.title) { setFormError(t.title + ' is required'); return; }
         if (!addForm.startDateTime) { setFormError(t.dateRange + ' is required'); return; }
-        if (addForm.duration <= 0) { setFormError('Duration must be positive'); return; }
+        if (addForm.duration <= 0) { setFormError(t.durationPositive); return; }
 
         const [startDate, startTime] = addForm.startDateTime ? addForm.startDateTime.split('T') : ['', ''];
 
@@ -230,48 +231,32 @@ export const Itinerary = () => {
     const formatDuration = (mins) => {
         const h = Math.floor(mins / 60);
         const m = mins % 60;
-        if (h > 0 && m > 0) return `${h}h ${m}m`;
-        if (h > 0) return `${h}h`;
-        return `${m}m`;
+        if (h > 0 && m > 0) return `${h}${t.hoursAbbr} ${m}${t.minutesAbbr}`;
+        if (h > 0) return `${h}${t.hoursAbbr}`;
+        return `${m}${t.minutesAbbr}`;
     };
 
     return (
         <div className="animate-fadeIn">
-            <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
-                <SectionTitle icon={Calendar} title={t.itinerary} subtitle={t.itinerarySubtitle} subtitleClassName="hidden md:block" />
-                <div className="flex flex-col items-stretch md:items-end gap-3 w-full md:w-auto">
-                    <div className="grid grid-cols-[auto_1fr_auto] grid-rows-2 md:flex md:flex-row items-stretch md:items-center bg-white border border-slate-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all overflow-hidden w-full">
-                        <div className="row-start-1 col-start-1 flex items-center px-3 py-2 border-r border-b md:border-b-0 border-slate-100 bg-slate-50/50 h-full">
-                            <Sparkles size={14} className="text-indigo-500" />
-                        </div>
-                        <select
-                            value={aiMode}
-                            onChange={(e) => setAiMode(e.target.value)}
-                            className="row-start-1 col-start-2 bg-transparent px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 outline-none border-b md:border-b-0 border-slate-100 h-full cursor-pointer hover:bg-slate-50 transition-colors"
-                        >
-                            <option value="add">{t.addNew}</option>
-                            <option value="update">{t.updateExisting}</option>
-                            <option value="fill">{t.fillGaps}</option>
-                            <option value="dedupe">{t.removeDuplicates}</option>
-                        </select>
-                        <input
-                            type="text"
-                            value={localPrompt}
-                            onChange={(e) => setLocalPrompt(e.target.value)}
-                            placeholder="AI Suggestions..."
-                            className="row-start-2 col-start-1 col-span-2 bg-transparent px-3 py-2 text-xs outline-none flex-1 min-w-[150px] text-slate-700 placeholder:text-slate-400 font-medium border-r md:border-r-0 border-slate-100"
+            <div className="mb-6">
+                <SectionTitle icon={Calendar} title={t.itinerary} subtitle={t.itinerarySubtitle} />
+            </div>
+
+            {/* AI Generation Tool Section - Full Width */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-8 shadow-sm">
+                <div className="flex flex-col lg:flex-row gap-4 items-start">
+                    <div className="flex-1 w-full">
+                        <AiPromptTool
+                            onGenerate={(prompt, mode, attachments) => dispatch(generateTrip({ targetArea: 'itinerary', customPrompt: prompt, aiMode: mode, promptAttachments: attachments }))}
+                            loading={loading}
+                            aiMode={aiMode}
+                            setAiMode={setAiMode}
+                            t={t}
+                            placeholder={t.customPrompt}
                         />
-                        <button
-                            onClick={() => dispatch(generateTrip({ targetArea: 'itinerary', customPrompt: localPrompt, aiMode }))}
-                            disabled={loading}
-                            className={`row-start-1 row-span-2 col-start-3 px-4 py-2 text-xs font-bold text-white transition-all flex items-center justify-center gap-2 ${loading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95'}`}
-                        >
-                            {loading ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
-                            <span className={loading ? "" : "md:inline"}>{loading ? "" : "Generate"}</span>
-                        </button>
                     </div>
-                    <div className="flex gap-2">
-                        <Button onClick={handleAddOpen} icon={Plus} className="flex-1 md:flex-initial h-9 text-xs px-4" variant="secondary">{t.addEvent}</Button>
+                    <div className="flex gap-2 w-full lg:w-auto">
+                        <Button onClick={handleAddOpen} icon={Plus} className="flex-1 h-10 text-xs px-6" variant="secondary">{t.addEvent}</Button>
                     </div>
                 </div>
             </div>
@@ -300,7 +285,7 @@ export const Itinerary = () => {
                                             rel="noopener noreferrer"
                                             className="text-xs bg-white text-blue-600 px-3 py-1.5 rounded-lg border border-blue-100 hover:bg-blue-50 flex items-center gap-1 font-medium transition-colors"
                                         >
-                                            <MapIcon size={12} /> View Daily Route
+                                            <MapIcon size={12} /> {t.viewDailyRoute}
                                         </a>
                                     </div>
 
@@ -331,11 +316,11 @@ export const Itinerary = () => {
                                                                     </div>
                                                                     <div className="col-span-2 flex items-center gap-1">
                                                                         <Clock size={14} className="text-slate-400" />
-                                                                        <input type="number" value={item.duration || 60} onChange={e => updateItineraryItem(item.id, 'duration', parseInt(e.target.value))} className="border p-1 rounded text-sm w-20" /> <span className="text-xs text-slate-400">min</span>
+                                                                        <input type="number" value={item.duration || 60} onChange={e => updateItineraryItem(item.id, 'duration', parseInt(e.target.value))} className="border p-1 rounded text-sm w-20" /> <span className="text-xs text-slate-400">{t.minutesAbbr}</span>
                                                                     </div>
                                                                 </div>
-                                                                <input value={item.location} onChange={e => updateItineraryItem(item.id, 'location', e.target.value)} className="w-full border p-1 rounded text-sm" placeholder="Location" />
-                                                                <textarea value={item.notes} onChange={e => updateItineraryItem(item.id, 'notes', e.target.value)} className="w-full border p-1 rounded text-sm h-20" placeholder="Notes" />
+                                                                <input value={item.location} onChange={e => updateItineraryItem(item.id, 'location', e.target.value)} className="w-full border p-1 rounded text-sm" placeholder={t.location} />
+                                                                <textarea value={item.notes} onChange={e => updateItineraryItem(item.id, 'notes', e.target.value)} className="w-full border p-1 rounded text-sm h-20" placeholder={t.notesPlaceholder} />
                                                                 <div className="space-y-2">
                                                                     <select value={item.type} onChange={e => updateItineraryItem(item.id, 'type', e.target.value)} className="border p-2 rounded-lg text-sm w-full bg-slate-50">
                                                                         {EVENT_TYPES.map(type => (
@@ -375,7 +360,7 @@ export const Itinerary = () => {
                                                                                 <span className="flex items-center gap-1"><Clock size={10} /> {formatDuration(item.duration || 60)}</span>
                                                                                 {item.cost > 0 && (
                                                                                     <span className={`px-2 py-0.5 rounded-full ${item.isPaid ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                                                                                        {item.currency} {item.cost} {item.isPaid ? '(Paid)' : '(Est)'}
+                                                                                        {item.currency} {item.cost} {item.isPaid ? t.paidSuffix : t.estSuffix}
                                                                                     </span>
                                                                                 )}
                                                                             </div>
@@ -430,7 +415,7 @@ export const Itinerary = () => {
                                                                             rel="noopener noreferrer"
                                                                             className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 mb-2"
                                                                         >
-                                                                            <MapIcon size={12} /> View Route
+                                                                            <MapIcon size={12} /> {t.viewRoute}
                                                                         </a>
                                                                     )}
 
@@ -548,7 +533,7 @@ export const Itinerary = () => {
                             />
                         </div>
                         <div className="flex flex-col">
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Duration</label>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.duration}</label>
                             <div className="flex gap-2 items-center">
                                 <div className="flex-1 relative">
                                     <input
@@ -559,7 +544,7 @@ export const Itinerary = () => {
                                         className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm pl-2 pr-6"
                                         placeholder="0"
                                     />
-                                    <span className="absolute right-2 top-2 text-xs text-slate-400">h</span>
+                                    <span className="absolute right-2 top-2 text-xs text-slate-400">{t.hoursAbbr}</span>
                                 </div>
                                 <div className="flex-1 relative">
                                     <input
@@ -571,7 +556,7 @@ export const Itinerary = () => {
                                         className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm pl-2 pr-6"
                                         placeholder="0"
                                     />
-                                    <span className="absolute right-2 top-2 text-xs text-slate-400">m</span>
+                                    <span className="absolute right-2 top-2 text-xs text-slate-400">{t.minutesAbbr}</span>
                                 </div>
                             </div>
                         </div>
@@ -579,7 +564,7 @@ export const Itinerary = () => {
 
                     {/* Timezone */}
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Globe size={12} /> Time Zone</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Globe size={12} /> {t.timeZone}</label>
                         <select
                             value={addForm.timeZone}
                             onChange={e => setAddForm({ ...addForm, timeZone: e.target.value })}
@@ -593,7 +578,7 @@ export const Itinerary = () => {
 
                     {/* Destination Timezone */}
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Globe size={12} /> Destination Time Zone (if different)</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Globe size={12} /> {t.destTimeZone}</label>
                         <select
                             value={addForm.destinationTimeZone}
                             onChange={e => setAddForm({ ...addForm, destinationTimeZone: e.target.value })}
@@ -647,11 +632,11 @@ export const Itinerary = () => {
                     </div>
 
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Notes</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.notes}</label>
                         <textarea
                             value={addForm.notes}
                             onChange={(e) => setAddForm(prev => ({ ...prev, notes: e.target.value }))}
-                            placeholder="Add extra details, booking refs, etc."
+                            placeholder={t.notesPlaceholder}
                             className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm h-24 focus:ring-2 focus:ring-indigo-500 outline-none"
                         />
                     </div>
@@ -678,7 +663,7 @@ export const Itinerary = () => {
                 onClose={() => setConfirmDelete({ isOpen: false, id: null })}
                 onConfirm={handleConfirmDelete}
                 title={t.confirmDelete || 'Delete Event'}
-                message={t.confirmDeleteMsg || 'Are you sure you want to delete this event? This action cannot be undone.'}
+                message={t.confirmDeleteEvent || 'Are you sure you want to delete this event? This action cannot be undone.'}
             />
 
             <FilePreviewModal
