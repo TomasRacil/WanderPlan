@@ -19,7 +19,8 @@ describe('tripSlice reducer', () => {
                 lastUsedCurrency: 'USD'
             },
             itinerary: [],
-            preTripTasks: []
+            preTripTasks: [],
+            distilledContext: {}
         };
     });
 
