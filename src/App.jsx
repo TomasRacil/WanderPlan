@@ -1,7 +1,7 @@
 import React from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
-  Settings, Plane, Home, Wallet, CheckSquare, Calendar, Map as MapIcon, Loader, Globe, ArrowDownCircle, RefreshCw
+  Settings, Plane, Home, Wallet, CheckSquare, Calendar, Map as MapIcon, Loader, Globe, ArrowDownCircle, RefreshCw, FileText
 } from 'lucide-react';
 import { useRegisterSW } from 'virtual:pwa-register/react'
 
@@ -22,6 +22,7 @@ import { LOCALES } from './i18n/locales';
 import { Button } from './components/CommonUI';
 import { ReviewModal } from './components/ReviewModal';
 import { ErrorModal } from './components/ErrorModal';
+import { DocumentManagerModal } from './components/DocumentManagerModal';
 
 function WanderPlanContent() {
   const dispatch = useDispatch();
@@ -37,6 +38,8 @@ function WanderPlanContent() {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW();
+
+  const [showDocs, setShowDocs] = React.useState(false);
 
   // Local Nano Availability Check
   const [hasNano, setHasNano] = React.useState(false);
@@ -249,6 +252,14 @@ function WanderPlanContent() {
               className="w-full p-2 border rounded-lg mb-4 text-sm"
             />
 
+            <button
+              onClick={() => { setShowDocs(true); dispatch(setShowSettings(false)); }}
+              className="w-full mb-4 flex items-center justify-center gap-2 p-3 bg-white border border-slate-200 rounded-lg text-slate-600 font-bold text-sm hover:bg-slate-50 hover:text-indigo-600 transition-colors"
+            >
+              <FileText size={16} />
+              {t.manageDocuments || "Manage Documents"}
+            </button>
+
             <div className="mb-4">
               <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">{t.aiModel}</h3>
               <select
@@ -293,6 +304,11 @@ function WanderPlanContent() {
           </div>
         </div>
       )}
+
+      <DocumentManagerModal
+        isOpen={showDocs}
+        onClose={() => setShowDocs(false)}
+      />
     </div>
   );
 }

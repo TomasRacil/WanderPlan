@@ -106,8 +106,8 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
 
     const instructions = {
         add: "Focus ONLY on suggesting NEW items that are not in the list.",
-        update: "Focus ONLY on UPDATING existing items. Used their 'id' to specify which item you are changing. Return ONLY the fields that changed.",
-        fill: "Look for gaps and return NEW items or UPDATES to existing placeholders to fill those gaps.",
+        update: "Focus on UPDATING existing items using the provided context and any ATTACHMENTS. Use their 'id' to specify which item you are changing. Return ONLY the fields that changed.",
+        fill: "Look for gaps and return NEW items or UPDATES to existing placeholders to fill those gaps. Use provided ATTACHMENTS to extract missing details.",
         dedupe: "Identify exact or semantic duplicates. Return ONLY a list of IDs to remove."
     };
 

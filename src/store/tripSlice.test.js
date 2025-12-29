@@ -4,7 +4,8 @@ import tripReducer, {
     setItinerary,
     setPreTripTasks,
     setLanguage,
-    setActiveTab
+    setActiveTab,
+    deleteGlobalAttachment
 } from './tripSlice';
 
 describe('tripSlice reducer', () => {
@@ -51,5 +52,22 @@ describe('tripSlice reducer', () => {
     it('should handle setActiveTab', () => {
         const state = tripReducer(initialState, setActiveTab('budget'));
         expect(state.activeTab).toBe('budget');
+    });
+
+    it('should handle deleteGlobalAttachment', () => {
+        const stateWithAttachments = {
+            ...initialState,
+            itinerary: [{ id: 1, attachments: [{ id: 'att1' }, { id: 'att2' }] }],
+            preTripTasks: [{ id: 2, attachments: [{ id: 'att1' }] }],
+            packingList: [{ category: 'Clothes', items: [{ id: 3, attachments: [{ id: 'att1' }] }] }],
+            distilledContext: { 'att1': { extractedInfo: 'Test' } }
+        };
+        const state = tripReducer(stateWithAttachments, deleteGlobalAttachment('att1'));
+
+        expect(state.itinerary[0].attachments).toHaveLength(1);
+        expect(state.itinerary[0].attachments[0].id).toBe('att2');
+        expect(state.preTripTasks[0].attachments).toHaveLength(0);
+        expect(state.packingList[0].items[0].attachments).toHaveLength(0);
+        expect(state.distilledContext['att1']).toBeUndefined();
     });
 });

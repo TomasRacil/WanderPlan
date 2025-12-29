@@ -34,25 +34,36 @@ export const generateTrip = createAsyncThunk(
             );
 
             // Hydrate attachmentIds to actual attachment objects for the UI
-            const resolveAttachments = (items) => {
-                if (!items) return [];
-                return items.map(item => {
-                    if (item.attachmentIds && item.attachmentIds.length > 0) {
-                        item.attachments = item.attachmentIds.map(id => {
-                            // Find in promptAttachments
-                            const fresh = promptAttachments.find(a => a.id === id);
-                            if (fresh) return fresh;
-                            // Find in existing items (less likely for output, but possible)
-                            // ... simple fallback
-                            return { id, name: "Linked Attachment", type: "application/pdf" };
-                        });
-                    }
-                    return item;
+            const flattenAttachments = (itemIds) => {
+                if (!itemIds || !Array.isArray(itemIds)) return [];
+                return itemIds.map(id => {
+                    const fresh = promptAttachments.find(a => a.id === id);
+                    if (fresh) return fresh;
+                    // Fallback for existing items that might be referenced but not in promptAttachments
+                    // In a real app, we might need to look up in state, but here we prioritize fresh ones.
+                    // If it's an existing ID not in prompt, we create a placeholder so it doesn't break UI,
+                    // but ideally, the UI should handle missing data or lookup from 'allAttachments' pool.
+                    // For now, return a placeholder to ensure the ID is preserved in the object list.
+                    return { id, name: "Attachment", type: "unknown" };
                 });
             };
 
-            if (data.adds) data.adds = resolveAttachments(data.adds);
-            if (data.updates) data.updates = resolveAttachments(data.updates);
+            if (data.adds) {
+                data.adds = data.adds.map(item => ({
+                    ...item,
+                    attachments: flattenAttachments(item.attachmentIds)
+                }));
+            }
+
+            if (data.updates) {
+                data.updates = data.updates.map(upd => {
+                    // For updates, the attachmentIds are inside 'fields'
+                    if (upd.fields && upd.fields.attachmentIds) {
+                        upd.fields.attachments = flattenAttachments(upd.fields.attachmentIds);
+                    }
+                    return upd;
+                });
+            }
 
             return { data, targetArea, aiMode };
         } catch (error) {
@@ -128,6 +139,25 @@ const cleanupDistilledContext = (state) => {
     // Collect all active attachment IDs
     state.itinerary.forEach(i => (i.attachments || []).forEach(a => validIds.add(String(a.id))));
     state.preTripTasks.forEach(t => (t.attachments || []).forEach(a => validIds.add(String(a.id))));
+
+    // Protect IDs in Proposed Changes (Added/Updated but not yet applied)
+    if (state.proposedChanges && state.proposedChanges.data) {
+        const { adds, updates } = state.proposedChanges.data;
+        if (adds) {
+            adds.forEach(item => {
+                (item.attachments || []).forEach(a => validIds.add(String(a.id)));
+                (item.attachmentIds || []).forEach(id => validIds.add(String(id)));
+            });
+        }
+        if (updates) {
+            updates.forEach(upd => {
+                if (upd.fields) {
+                    (upd.fields.attachments || []).forEach(a => validIds.add(String(a.id)));
+                    (upd.fields.attachmentIds || []).forEach(id => validIds.add(String(id)));
+                }
+            });
+        }
+    }
 
     // Remove stale keys from distilledContext
     Object.keys(state.distilledContext).forEach(distilledId => {
@@ -282,6 +312,38 @@ export const tripSlice = createSlice({
         },
         discardProposedChanges: (state) => {
             state.proposedChanges = null;
+        },
+        // Global Attachment Deletion
+        deleteGlobalAttachment: (state, action) => {
+            const attachmentId = String(action.payload);
+
+            // Helper to remove attachment from an item
+            const remove = (item) => {
+                if (item.attachments) {
+                    item.attachments = item.attachments.filter(a => String(a.id) !== attachmentId);
+                }
+                if (item.attachmentIds) {
+                    item.attachmentIds = item.attachmentIds.filter(id => String(id) !== attachmentId);
+                }
+                return item;
+            };
+
+            // 1. Clean Itinerary
+            state.itinerary = state.itinerary.map(remove);
+
+            // 2. Clean PreTripTasks
+            state.preTripTasks = state.preTripTasks.map(remove);
+
+            // 3. Clean PackingList
+            state.packingList = state.packingList.map(cat => ({
+                ...cat,
+                items: (cat.items || []).map(remove)
+            }));
+
+            // 4. Clean Distilled Context
+            if (state.distilledContext && state.distilledContext[attachmentId]) {
+                delete state.distilledContext[attachmentId];
+            }
         },
         toggleProposedChange: (state, action) => {
             const { type, id } = action.payload; // type: 'adds', 'updates', 'deletes'
@@ -457,7 +519,13 @@ export const tripSlice = createSlice({
                 // If newDistilledData returned, save it to state immediately
                 if (action.payload.data && action.payload.data.newDistilledData) {
                     console.log("⚗️ New Distilled Data Received:", action.payload.data.newDistilledData);
-                    state.distilledContext = { ...state.distilledContext, ...action.payload.data.newDistilledData };
+                    if (Array.isArray(action.payload.data.newDistilledData)) {
+                        action.payload.data.newDistilledData.forEach(item => {
+                            if (item.attachmentId && item.summary) {
+                                state.distilledContext[item.attachmentId] = { extractedInfo: item.summary };
+                            }
+                        });
+                    }
                     // Remove from proposedChanges so it doesn't clutter review
                     delete action.payload.data.newDistilledData;
                 }
@@ -519,7 +587,7 @@ export const {
     setItinerary, setExpenses, setPackingList, setPhrasebook,
     loadFullTrip, setLanguage, setExchangeRates, updateExchangeRate,
     applyProposedChanges, discardProposedChanges, toggleProposedChange,
-    setSelectedModel, updateDistilledContext, clearQuotaError
+    setSelectedModel, updateDistilledContext, clearQuotaError, deleteGlobalAttachment
 } = tripSlice.actions;
 
 export default tripSlice.reducer;

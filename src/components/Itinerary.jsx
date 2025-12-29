@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Calendar, MapPin, Map as MapIcon, Edit2, Save as SaveIcon, Trash2, CheckCircle, Plus, Sparkles, Paperclip, Link as LinkIcon, Clock, Globe } from 'lucide-react';
+import { Calendar, MapPin, Map as MapIcon, Edit2, Save as SaveIcon, Trash2, CheckCircle, Plus, Sparkles, Paperclip, Link as LinkIcon, Clock, Globe, Loader2 } from 'lucide-react';
 import { BUDGET_CATEGORIES } from '../data/budgetConstants';
 import { EVENT_TYPES, TYPE_TO_CATEGORY } from '../data/eventConstants';
 import { SectionTitle, Card, Button, Modal, ConfirmModal } from './CommonUI';
@@ -21,7 +21,7 @@ const getCategory = (type) => {
 
 export const Itinerary = () => {
     const dispatch = useDispatch();
-    const { itinerary, language, tripDetails, exchangeRates = {}, loading } = useSelector(state => state.trip);
+    const { itinerary, preTripTasks, packingList, language, tripDetails, exchangeRates = {}, loading } = useSelector(state => state.trip);
     const [localPrompt, setLocalPrompt] = useState('');
 
     // Filtered list of currencies allowed (Home + Added)
@@ -32,12 +32,32 @@ export const Itinerary = () => {
 
     const t = LOCALES[language || 'en'];
 
+    // Derive all unique attachments for the Library
+    const existingAttachments = useMemo(() => {
+        const unique = new Map();
+        const add = (items) => {
+            if (!items) return;
+            items.forEach(item => {
+                if (item.attachments) {
+                    item.attachments.forEach(att => unique.set(String(att.id), att));
+                }
+            });
+        };
+        add(itinerary);
+        add(preTripTasks);
+        packingList?.forEach(cat => add(cat.items));
+        return Array.from(unique.values());
+    }, [itinerary, preTripTasks, packingList]);
+
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [aiMode, setAiMode] = useState('add');
     const [editMode, setEditMode] = useState(false);
     const [formError, setFormError] = useState('');
     const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, id: null });
     const [previewFile, setPreviewFile] = useState(null);
+    const [loadingStartTz, setLoadingStartTz] = useState(false);
+    const [loadingEndTz, setLoadingEndTz] = useState(false);
+    const [promptResetTrigger, setPromptResetTrigger] = useState(0);
     const [addForm, setAddForm] = useState({
         id: null,
         title: '', type: 'Activity',
@@ -78,6 +98,19 @@ export const Itinerary = () => {
         const endTime = `${pad(finalEnd.getHours())}:${pad(finalEnd.getMinutes())}`;
 
         return { endDate, endTime, tzLabel };
+    };
+
+    const handleGenerate = (prompt, mode, attachments) => {
+        dispatch(generateTrip({ targetArea: 'itinerary', customPrompt: prompt, aiMode: mode, promptAttachments: attachments }))
+            .unwrap()
+            .then(() => {
+                // Clear prompt on success
+                setPromptResetTrigger(prev => prev + 1);
+            })
+            .catch(err => {
+                console.error("Geneation failed", err);
+                // Do not clear prompt on error
+            });
     };
 
     const handleAddOpen = () => {
@@ -247,12 +280,13 @@ export const Itinerary = () => {
                 <div className="flex flex-col lg:flex-row gap-4 items-start">
                     <div className="flex-1 w-full">
                         <AiPromptTool
-                            onGenerate={(prompt, mode, attachments) => dispatch(generateTrip({ targetArea: 'itinerary', customPrompt: prompt, aiMode: mode, promptAttachments: attachments }))}
+                            onGenerate={handleGenerate}
                             loading={loading}
                             aiMode={aiMode}
                             setAiMode={setAiMode}
                             t={t}
                             placeholder={t.customPrompt}
+                            resetTrigger={promptResetTrigger}
                         />
                     </div>
                     <div className="flex gap-2 w-full lg:w-auto">
@@ -563,8 +597,12 @@ export const Itinerary = () => {
                     </div>
 
                     {/* Timezone */}
+                    {/* Timezone */}
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Globe size={12} /> {t.timeZone}</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                            <Globe size={12} /> {t.timeZone}
+                            {loadingStartTz && <Loader2 size={12} className="animate-spin text-indigo-500" />}
+                        </label>
                         <select
                             value={addForm.timeZone}
                             onChange={e => setAddForm({ ...addForm, timeZone: e.target.value })}
@@ -576,19 +614,24 @@ export const Itinerary = () => {
                         </select>
                     </div>
 
-                    {/* Destination Timezone */}
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Globe size={12} /> {t.destTimeZone}</label>
-                        <select
-                            value={addForm.destinationTimeZone}
-                            onChange={e => setAddForm({ ...addForm, destinationTimeZone: e.target.value })}
-                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                        >
-                            {Intl.supportedValuesOf('timeZone').map(tz => (
-                                <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
-                            ))}
-                        </select>
-                    </div>
+                    {/* Destination Timezone - Only if end location differs */}
+                    {addForm.endLocation && (
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                                <Globe size={12} /> {t.destTimeZone}
+                                {loadingEndTz && <Loader2 size={12} className="animate-spin text-indigo-500" />}
+                            </label>
+                            <select
+                                value={addForm.destinationTimeZone}
+                                onChange={e => setAddForm({ ...addForm, destinationTimeZone: e.target.value })}
+                                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
+                            >
+                                {Intl.supportedValuesOf('timeZone').map(tz => (
+                                    <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
 
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.startLocation} ({t.start})</label>
@@ -596,17 +639,21 @@ export const Itinerary = () => {
                             <LocationAutocomplete
                                 value={addForm.location}
                                 onChange={(val) => setAddForm(prev => ({ ...prev, location: val }))}
-                                onSelect={(item) => setAddForm(prev => {
-                                    const newTz = item.timeZone || prev.timeZone;
-                                    return {
+                                onSelect={(item) => setAddForm(prev => ({
+                                    ...prev,
+                                    location: item.name,
+                                    coordinates: { lat: item.lat, lng: item.lng },
+                                    // Don't set TZ here, wait for async or use what we have (null from immediate select)
+                                }))}
+                                onTimezoneLoading={setLoadingStartTz}
+                                onTimezoneSelect={(tz) => {
+                                    if (tz) setAddForm(prev => ({
                                         ...prev,
-                                        location: item.name,
-                                        coordinates: { lat: item.lat, lng: item.lng },
-                                        timeZone: newTz,
-                                        // Update destination TZ as well if they were in sync
-                                        destinationTimeZone: (prev.timeZone === prev.destinationTimeZone) ? newTz : prev.destinationTimeZone
-                                    };
-                                })}
+                                        timeZone: tz,
+                                        // Auto-sync dest TZ if it was same as start
+                                        destinationTimeZone: (!prev.endLocation || prev.timeZone === prev.destinationTimeZone) ? tz : prev.destinationTimeZone
+                                    }));
+                                }}
                                 placeholder={t.startPlaceholder}
                                 className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
                             />
@@ -622,9 +669,12 @@ export const Itinerary = () => {
                                 onSelect={(item) => setAddForm(prev => ({
                                     ...prev,
                                     endLocation: item.name,
-                                    endCoordinates: { lat: item.lat, lng: item.lng },
-                                    destinationTimeZone: item.timeZone || prev.destinationTimeZone
+                                    endCoordinates: { lat: item.lat, lng: item.lng }
                                 }))}
+                                onTimezoneLoading={setLoadingEndTz}
+                                onTimezoneSelect={(tz) => {
+                                    if (tz) setAddForm(prev => ({ ...prev, destinationTimeZone: tz }));
+                                }}
                                 placeholder={t.endPlaceholder}
                                 className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
                             />
@@ -646,6 +696,7 @@ export const Itinerary = () => {
                         <AttachmentManager
                             attachments={addForm.attachments || []}
                             links={addForm.links || []}
+                            existingAttachments={existingAttachments}
                             onUpdate={(data) => setAddForm({ ...addForm, ...data })}
                             t={t}
                         />

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Plus, CheckSquare, Trash2, CheckCircle, Sparkles, Paperclip, Link as LinkIcon, Download, Edit2, FileText } from 'lucide-react';
 import { BUDGET_CATEGORIES } from '../data/budgetConstants';
@@ -14,7 +14,7 @@ import { getBudgetCategory } from '../utils/helpers';
 
 export const PreTripTasks = () => {
     const dispatch = useDispatch();
-    const { preTripTasks, tripDetails, language, exchangeRates = {}, loading } = useSelector(state => state.trip);
+    const { preTripTasks, itinerary, packingList, tripDetails, language, exchangeRates = {}, loading } = useSelector(state => state.trip);
 
     // Filtered list of currencies allowed (Home + Added)
     const activeCurrencies = ALL_CURRENCIES.filter(c =>
@@ -23,6 +23,23 @@ export const PreTripTasks = () => {
     );
 
     const t = LOCALES[language || 'en'];
+
+    // Derive all unique attachments for the Library
+    const existingAttachments = useMemo(() => {
+        const unique = new Map();
+        const add = (items) => {
+            if (!items) return;
+            items.forEach(item => {
+                if (item.attachments) {
+                    item.attachments.forEach(att => unique.set(String(att.id), att));
+                }
+            });
+        };
+        add(itinerary);
+        add(preTripTasks);
+        packingList?.forEach(cat => add(cat.items));
+        return Array.from(unique.values());
+    }, [itinerary, preTripTasks, packingList]);
 
     const [modal, setModal] = useState({ isOpen: false, type: 'add', taskId: null });
     const [taskForm, setTaskForm] = useState({
@@ -390,6 +407,7 @@ export const PreTripTasks = () => {
                         <AttachmentManager
                             attachments={taskForm.attachments || []}
                             links={taskForm.links || []}
+                            existingAttachments={existingAttachments}
                             onUpdate={(data) => setTaskForm({ ...taskForm, ...data })}
                             t={t}
                         />

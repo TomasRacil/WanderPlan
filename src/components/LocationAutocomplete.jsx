@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSelector } from 'react-redux';
 import { MapPin, Loader2 } from 'lucide-react';
 
-export const LocationAutocomplete = ({ value, onChange, onSelect, placeholder, className }) => {
+export const LocationAutocomplete = ({ value, onChange, onSelect, onTimezoneSelect, onTimezoneLoading, placeholder, className }) => {
     const language = useSelector(state => state.trip.language || 'en');
     const [query, setQuery] = useState(value || '');
     const [results, setResults] = useState([]);
@@ -56,7 +56,7 @@ export const LocationAutocomplete = ({ value, onChange, onSelect, placeholder, c
         setIsOpen(true);
     };
 
-    const handleSelect = async (feature) => {
+    const handleSelect = (feature) => {
         const { properties, geometry } = feature;
         const [lng, lat] = geometry.coordinates;
 
@@ -71,38 +71,47 @@ export const LocationAutocomplete = ({ value, onChange, onSelect, placeholder, c
         const fullAddress = parts.join(', ');
 
         setQuery(fullAddress);
-        setLoading(true);
+        setIsOpen(false);
 
-        let timeZone = '';
-        try {
-            // Fetch timezone from timeapi.io with a timeout
-            const controller = new AbortController();
-            const id = setTimeout(() => controller.abort(), 3500);
-
-            const tzResponse = await fetch(`https://www.timeapi.io/api/TimeZone/coordinate?latitude=${lat}&longitude=${lng}`, {
-                signal: controller.signal
-            });
-            clearTimeout(id);
-
-            if (tzResponse.ok) {
-                const tzData = await tzResponse.json();
-                timeZone = tzData.timeZone;
-            }
-        } catch (error) {
-            console.error("Timezone fetch error:", error);
-            // If it times out or fails, we just proceed without it
-        }
-
-        setLoading(false);
+        // Immediate Select Update (No blocking)
         onChange(fullAddress);
         onSelect({
             name: properties.name || fullAddress,
             address: fullAddress,
             lat,
             lng,
-            timeZone
+            timeZone: '' // Will need to be filled asynchronously
         });
-        setIsOpen(false);
+
+        // Async Timezone Fetch
+        if (onTimezoneSelect || onTimezoneLoading) {
+            const fetchTimezone = async () => {
+                if (onTimezoneLoading) onTimezoneLoading(true);
+                try {
+                    const controller = new AbortController();
+                    const id = setTimeout(() => controller.abort(), 10000);
+
+                    const tzResponse = await fetch(`https://www.timeapi.io/api/TimeZone/coordinate?latitude=${lat}&longitude=${lng}`, {
+                        signal: controller.signal
+                    });
+                    clearTimeout(id);
+
+                    if (tzResponse.ok) {
+                        const tzData = await tzResponse.json();
+                        if (onTimezoneSelect) onTimezoneSelect(tzData.timeZone);
+                    }
+                } catch (error) {
+                    if (error.name === 'AbortError') {
+                        console.warn("Timezone fetch timed out or was aborted.");
+                    } else {
+                        console.error("Timezone fetch error:", error);
+                    }
+                } finally {
+                    if (onTimezoneLoading) onTimezoneLoading(false);
+                }
+            };
+            fetchTimezone();
+        }
     };
 
     return (

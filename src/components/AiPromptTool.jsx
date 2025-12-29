@@ -3,7 +3,7 @@ import { Sparkles, Paperclip, X } from 'lucide-react';
 import { AttachmentManager } from './AttachmentManager';
 import { Button } from './CommonUI';
 
-export const AiPromptTool = ({ onGenerate, loading, aiMode, setAiMode, t, placeholder = "AI Suggestions..." }) => {
+export const AiPromptTool = ({ onGenerate, loading, aiMode, setAiMode, t, placeholder = "AI Suggestions...", resetTrigger }) => {
     const [localPrompt, setLocalPrompt] = useState('');
     const [showAttachments, setShowAttachments] = useState(false);
     const [attachments, setAttachments] = useState([]);
@@ -11,6 +11,14 @@ export const AiPromptTool = ({ onGenerate, loading, aiMode, setAiMode, t, placeh
     // Links are not typically used for prompt context yet, but AttachmentManager handles them.
     // We can just ignore them or store them if we want to support URL context later.
     const [links, setLinks] = useState([]);
+
+    React.useEffect(() => {
+        if (resetTrigger) {
+            setLocalPrompt('');
+            setAttachments([]);
+            setShowAttachments(false);
+        }
+    }, [resetTrigger]);
 
     const handleGenerate = () => {
         onGenerate(localPrompt, aiMode, attachments);

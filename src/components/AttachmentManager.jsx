@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Paperclip, Link as LinkIcon, X, Plus, Image as ImageIcon, FileText, Trash2, ExternalLink, Download } from 'lucide-react';
+import { Paperclip, Link as LinkIcon, X, Plus, Image as ImageIcon, FileText, Trash2, ExternalLink, Download, Library, CheckSquare } from 'lucide-react';
 import { Button } from './CommonUI';
 
-export const AttachmentManager = ({ attachments = [], links = [], onUpdate, t }) => {
+export const AttachmentManager = ({ attachments = [], links = [], existingAttachments = [], onUpdate, t }) => {
     const [activeTab, setActiveTab] = useState('files');
     const [inputUrl, setInputUrl] = useState('');
     const [inputLabel, setInputLabel] = useState('');
@@ -100,6 +100,15 @@ export const AttachmentManager = ({ attachments = [], links = [], onUpdate, t })
                 >
                     {t?.links || 'Links'} ({links.length})
                 </button>
+                {existingAttachments.length > 0 && (
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('library')}
+                        className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider ${activeTab === 'library' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        {t?.library || 'Library'}
+                    </button>
+                )}
             </div>
 
             <div className="p-4">
@@ -184,6 +193,45 @@ export const AttachmentManager = ({ attachments = [], links = [], onUpdate, t })
                                     </button>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'library' && (
+                    <div className="space-y-4">
+                        <p className="text-xs text-slate-500 italic mb-2">{t?.libraryDesc || "Select documents previously uploaded to other items in your trip."}</p>
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {existingAttachments.map(file => {
+                                const isAdded = attachments.some(a => a.id === file.id);
+                                return (
+                                    <div key={file.id} className={`flex items-center justify-between p-2 border rounded-lg group ${isAdded ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200 hover:border-indigo-300'}`}>
+                                        <div className="flex items-center gap-3 overflow-hidden">
+                                            <div className="w-8 h-8 shrink-0 bg-slate-100 rounded flex items-center justify-center text-slate-500">
+                                                {file.type.includes('image') ? (
+                                                    <img src={file.data} alt="thumb" className="w-full h-full object-cover rounded" />
+                                                ) : (
+                                                    <FileText size={16} />
+                                                )}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-medium text-slate-700 truncate">{file.name}</p>
+                                                <p className="text-[10px] text-slate-400 uppercase">{file.type.split('/')[1]}</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                if (isAdded) return;
+                                                // Add reference to existing file
+                                                onUpdate({ attachments: [...attachments, file], links });
+                                            }}
+                                            className={`p-1.5 rounded-lg transition-colors ${isAdded ? 'text-indigo-400 cursor-default' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                                            disabled={isAdded}
+                                        >
+                                            {isAdded ? <CheckSquare size={16} /> : <Plus size={16} />}
+                                        </button>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
                 )}
