@@ -208,7 +208,21 @@ export const LOCALES = {
         selectCurrencyToAdd: "Select Currency to Add",
         ratePlaceholder: "Rate",
         deleteExpense: "Delete Expense",
-        editTransaction: "Edit Transaction"
+        rename: "Rename",
+        manageDocuments: "Manage Documents",
+        noDocuments: "No documents attached to any items.",
+        includeInPrint: "Include in Print",
+        refs: "References",
+        viewAiData: "View AI Data",
+        cleanupUnused: "Cleanup Unused",
+        confirmCleanup: "Remove all documents that are not referenced by any itinerary item or task?",
+        aiAnalyzedData: "AI Analyzed Data",
+        editAiData: "Edit AI Data",
+        aiDataDescription: "Information Gemini uses to understand this document.",
+        aiExtractedInfo: "AI Extracted Information",
+        aiSummaryUsage: "The AI uses this summary to understand the document without re-reading it.",
+        noDataAvailable: "No data available.",
+        confirmDeleteDocMsg: "Are you sure you want to delete this document? It will be removed from ALL events and tasks that reference it."
     },
     cs: {
         planMyTrip: "Naplánovat cestu",
@@ -419,6 +433,20 @@ export const LOCALES = {
         selectCurrencyToAdd: "Vyberte měnu pro přidání",
         ratePlaceholder: "Kurz",
         deleteExpense: "Smazat výdaj",
-        editTransaction: "Upravit transakci"
+        rename: "Přejmenovat",
+        manageDocuments: "Spravovat dokumenty",
+        noDocuments: "Žádné dokumenty nejsou připojeny k žádné položce.",
+        includeInPrint: "Zahrnout do tisku",
+        refs: "Odkazy",
+        viewAiData: "Zobrazit AI data",
+        cleanupUnused: "Vyčistit nepoužité",
+        confirmCleanup: "Odstranit všechny dokumenty, které nejsou citovány v žádné položce itineráře nebo úkolu?",
+        aiAnalyzedData: "AI Analyzovaná data",
+        editAiData: "Upravit AI data",
+        aiDataDescription: "Informace, které Gemini používá k pochopení tohoto dokumentu.",
+        aiExtractedInfo: "AI Extrahované informace",
+        aiSummaryUsage: "AI používá tento souhrn k pochopení dokumentu bez jeho opětovného čtení.",
+        noDataAvailable: "Žádná data nejsou k dispozici.",
+        confirmDeleteDocMsg: "Opravdu chcete tento dokument smazat? Bude odstraněn ze VŠECH událostí a úkolů, které na něj odkazují."
     }
 };

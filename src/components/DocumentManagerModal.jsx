@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Modal, Button, ConfirmModal } from './CommonUI';
-import { Trash2, FileText, Image as ImageIcon, Eye, AlertCircle, Sparkles, Download } from 'lucide-react';
+import { Trash2, FileText, Image as ImageIcon, Eye, AlertCircle, Sparkles, Download, Edit2, Check, X } from 'lucide-react';
 import { deleteGlobalAttachment, updateDocument, removeUnusedDocuments } from '../store/tripSlice';
 import { LOCALES } from '../i18n/locales';
 import { FilePreviewModal } from './FilePreviewModal';
@@ -14,6 +14,9 @@ export const DocumentManagerModal = ({ isOpen, onClose }) => {
     const [viewingDistilled, setViewingDistilled] = useState(null);
     const [confirmDelete, setConfirmDelete] = useState(null);
     const [previewFile, setPreviewFile] = useState(null);
+    const [editingId, setEditingId] = useState(null);
+    const [editingName, setEditingName] = useState('');
+    const [summaryDraft, setSummaryDraft] = useState('');
 
     const handleDownload = (doc) => {
         if (!doc.data) return;
@@ -43,7 +46,7 @@ export const DocumentManagerModal = ({ isOpen, onClose }) => {
 
         itinerary.forEach(i => (i.attachmentIds || []).forEach(id => incrementRef(id, t?.itinerary || 'Itinerary')));
         preTripTasks.forEach(task => (task.attachmentIds || []).forEach(id => incrementRef(id, t?.tasks || 'Tasks')));
-        packingList.forEach(cat => (cat.items || []).forEach(item => (item.attachmentIds || []).forEach(id => incrementRef(id, t?.packing || 'Packing'))));
+        packingList.forEach(cat => (cat.items || []).forEach(item => (item.attachmentIds || []).forEach(id => incrementRef(id, t?.packing || 'Packing List'))));
 
         return docList;
     }, [itinerary, preTripTasks, packingList, storedDocuments, t]);
@@ -60,6 +63,30 @@ export const DocumentManagerModal = ({ isOpen, onClose }) => {
     const handleCleanup = () => {
         if (window.confirm(t?.confirmCleanup || "Remove all documents that are not referenced by any itinerary item or task?")) {
             dispatch(removeUnusedDocuments());
+        }
+    };
+
+    const startEditing = (doc) => {
+        setEditingId(doc.id);
+        setEditingName(doc.name);
+    };
+
+    const saveRename = () => {
+        if (editingName.trim() && editingId) {
+            dispatch(updateDocument({ id: editingId, updates: { name: editingName.trim() } }));
+        }
+        setEditingId(null);
+    };
+
+    const handleRenameKeyDown = (e) => {
+        if (e.key === 'Enter') saveRename();
+        if (e.key === 'Escape') setEditingId(null);
+    };
+
+    const handleSaveSummary = () => {
+        if (viewingDistilled?.id) {
+            dispatch(updateDocument({ id: viewingDistilled.id, updates: { summary: summaryDraft } }));
+            setViewingDistilled(null);
         }
     };
 
@@ -87,8 +114,42 @@ export const DocumentManagerModal = ({ isOpen, onClose }) => {
                                                     <FileText size={20} />
                                                 )}
                                             </div>
-                                            <div className="min-w-0">
-                                                <p className="text-sm font-bold text-slate-700 truncate group-hover:text-indigo-600 transition-colors" title={doc.name}>{doc.name}</p>
+                                            <div className="min-w-0 flex-1">
+                                                {editingId === doc.id ? (
+                                                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                                        <input
+                                                            autoFocus
+                                                            type="text"
+                                                            value={editingName}
+                                                            onChange={(e) => setEditingName(e.target.value)}
+                                                            onBlur={saveRename}
+                                                            onKeyDown={handleRenameKeyDown}
+                                                            className="text-sm font-bold text-indigo-600 bg-indigo-50 border-b-2 border-indigo-500 focus:outline-none w-full px-1"
+                                                        />
+                                                        <button onClick={saveRename} className="p-1 text-emerald-500 hover:bg-emerald-50 rounded">
+                                                            <Check size={14} />
+                                                        </button>
+                                                        <button onClick={() => setEditingId(null)} className="p-1 text-red-500 hover:bg-red-50 rounded">
+                                                            <X size={14} />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-1 group/name">
+                                                        <p
+                                                            className="text-sm font-bold text-slate-700 truncate group-hover:text-indigo-600 transition-colors"
+                                                            title={doc.name}
+                                                        >
+                                                            {doc.name}
+                                                        </p>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); startEditing(doc); }}
+                                                            className="opacity-0 group-hover/name:opacity-100 p-0.5 text-slate-400 hover:text-indigo-500 transition-all"
+                                                            title={t?.rename}
+                                                        >
+                                                            <Edit2 size={12} />
+                                                        </button>
+                                                    </div>
+                                                )}
                                                 <p className="text-[10px] text-slate-400 uppercase">{doc.type.split('/')[1] || 'FILE'} • {Math.round((doc.data?.length || 0) / 1024)}KB</p>
                                             </div>
                                         </div>
@@ -102,7 +163,7 @@ export const DocumentManagerModal = ({ isOpen, onClose }) => {
                                                     className="w-3 h-3 rounded text-indigo-600 mr-1.5"
                                                 />
                                                 <label htmlFor={`print-${doc.id}`} className="text-[10px] font-bold text-slate-500 uppercase cursor-pointer select-none">
-                                                    {t?.includeInPrint || "Print"}
+                                                    {t?.includeInPrint || "Include in Print"}
                                                 </label>
                                             </div>
                                             <button
@@ -125,7 +186,7 @@ export const DocumentManagerModal = ({ isOpen, onClose }) => {
                                     <div className="flex items-center justify-between mt-1 pt-2 border-t border-slate-50">
                                         <div className="flex gap-1 flex-wrap">
                                             <span className="text-[10px] font-bold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">
-                                                {doc.refs} {t?.refs || 'Refs'}
+                                                {doc.refs} {t?.refs || 'References'}
                                             </span>
                                             {Array.from(doc.sources).map(src => (
                                                 <span key={src} className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200">
@@ -136,7 +197,10 @@ export const DocumentManagerModal = ({ isOpen, onClose }) => {
 
                                         {doc.summary && (
                                             <button
-                                                onClick={() => setViewingDistilled({ id: doc.id, name: doc.name, info: doc.summary })}
+                                                onClick={() => {
+                                                    setViewingDistilled({ id: doc.id, name: doc.name, info: doc.summary });
+                                                    setSummaryDraft(typeof doc.summary === 'string' ? doc.summary : doc.summary?.extractedInfo || '');
+                                                }}
                                                 className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 hover:underline"
                                             >
                                                 <Eye size={10} /> {t?.viewAiData || "View AI Data"}
@@ -150,32 +214,44 @@ export const DocumentManagerModal = ({ isOpen, onClose }) => {
 
                     <div className="flex justify-between items-center pt-4 border-t border-slate-100">
                         <Button variant="secondary" onClick={handleCleanup} icon={Trash2} className="text-red-500 hover:bg-red-50 border-red-100">
-                            {t?.cleanupUnused || "Remove Unused"}
+                            {t?.cleanupUnused || "Cleanup Unused"}
                         </Button>
                         <Button variant="secondary" onClick={onClose}>{t?.close}</Button>
                     </div>
                 </div>
             </Modal>
 
-            {/* View Distilled Info Modal */}
+            {/* Edit AI Data Modal */}
             <Modal
                 isOpen={!!viewingDistilled}
                 onClose={() => setViewingDistilled(null)}
-                title={viewingDistilled?.name || "AI Analyzed Data"}
+                title={viewingDistilled?.name ? `${t?.editAiData || "Edit AI Data"}: ${viewingDistilled.name}` : (t?.editAiData || "Edit AI Data")}
             >
                 <div className="space-y-4">
                     <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-lg flex items-start gap-2">
                         <Sparkles className="text-emerald-500 mt-0.5 shrink-0" size={16} />
                         <div className="text-xs text-emerald-800">
-                            <p className="font-bold mb-1">AI Extracted Information</p>
-                            <p>The AI uses this summary to understand the document without re-reading it.</p>
+                            <p className="font-bold mb-1">{t?.aiExtractedInfo || "AI Extracted Information"}</p>
+                            <p className="mb-2">{t?.aiSummaryUsage || "The AI uses this summary to understand the document without re-reading it."}</p>
+                            <p className="italic bg-white/50 p-2 rounded border border-emerald-100 text-[10px]">
+                                <AlertCircle size={10} className="inline mr-1 mb-0.5" />
+                                {t?.aiDataDescription || "Information Gemini uses to understand this document."}
+                            </p>
                         </div>
                     </div>
-                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 font-mono text-xs text-slate-600 whitespace-pre-wrap max-h-96 overflow-auto">
-                        {typeof viewingDistilled?.info === 'string' ? viewingDistilled.info : viewingDistilled?.info?.extractedInfo || "No data available."}
-                    </div>
-                    <div className="flex justify-end">
-                        <Button onClick={() => setViewingDistilled(null)}>{t?.close}</Button>
+
+                    <textarea
+                        value={summaryDraft}
+                        onChange={(e) => setSummaryDraft(e.target.value)}
+                        className="w-full h-64 p-4 rounded-lg border border-slate-200 font-mono text-xs text-slate-600 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-none"
+                        placeholder={t?.noDataAvailable || "No data available."}
+                    />
+
+                    <div className="flex justify-end gap-2">
+                        <Button variant="secondary" onClick={() => setViewingDistilled(null)}>{t?.cancel}</Button>
+                        <Button onClick={handleSaveSummary} icon={Sparkles} className="bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700">
+                            {t?.saveChanges || "Save Changes"}
+                        </Button>
                     </div>
                 </div>
             </Modal>
