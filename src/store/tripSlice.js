@@ -174,6 +174,7 @@ const migrateToCentralStore = (state) => {
                     item.attachmentIds.push(id);
                 }
             });
+            delete item.attachments;
         }
     };
 
