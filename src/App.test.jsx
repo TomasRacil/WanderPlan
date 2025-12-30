@@ -3,6 +3,10 @@ import { render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import tripReducer from './store/tripSlice';
+import itineraryReducer from './store/itinerarySlice';
+import packingReducer from './store/packingSlice';
+import resourceReducer from './store/resourceSlice';
+import uiReducer from './store/uiSlice';
 import App from './App';
 import { describe, it, expect, vi } from 'vitest';
 
@@ -18,7 +22,11 @@ vi.mock('idb-keyval', () => ({
 // Mock store for testing
 const createTestStore = () => configureStore({
     reducer: {
-        trip: tripReducer
+        trip: tripReducer,
+        itinerary: itineraryReducer,
+        packing: packingReducer,
+        resources: resourceReducer,
+        ui: uiReducer
     }
 });
 

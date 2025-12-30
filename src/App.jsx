@@ -7,7 +7,10 @@ import { useRegisterSW } from 'virtual:pwa-register/react'
 
 import { COLORS } from './data/uiConstants';
 import {
-  setActiveTab, setShowSettings, loadFullTrip, setApiKey, generateTrip, setLanguage, initializeTrip, setSelectedModel, clearQuotaError
+  setActiveTab, setShowSettings, setLanguage, clearQuotaError
+} from './store/uiSlice';
+import {
+  loadFullTrip, setApiKey, generateTrip, initializeTrip, setSelectedModel
 } from './store/tripSlice';
 import { AVAILABLE_MODELS, logAvailableModels } from './services/gemini';
 import { set } from 'idb-keyval';
@@ -26,11 +29,11 @@ import { DocumentManagerModal } from './components/DocumentManagerModal';
 
 function WanderPlanContent() {
   const dispatch = useDispatch();
-  const { tripDetails, expenses, itinerary, preTripTasks, apiKey, customPrompt, packingList, phrasebook, exchangeRates, isInitialized, selectedModel, distilledContext, documents } = useSelector(state => state.trip);
-  const activeTab = useSelector(state => state.trip.activeTab);
-  const showSettings = useSelector(state => state.trip.showSettings);
-  const loading = useSelector(state => state.trip.loading);
-  const language = useSelector(state => state.trip.language || 'en');
+  const { tripDetails, expenses, apiKey, exchangeRates, selectedModel } = useSelector(state => state.trip);
+  const { items: itinerary } = useSelector(state => state.itinerary);
+  const { list: packingList } = useSelector(state => state.packing);
+  const { tasks: preTripTasks, documents, distilledContext, phrasebook } = useSelector(state => state.resources);
+  const { activeTab, showSettings, loading, language, quotaError, isInitialized } = useSelector(state => state.ui);
   const t = LOCALES[language];
 
   // PWA Update
@@ -206,7 +209,7 @@ function WanderPlanContent() {
 
       {/* Error Modal for Quota Limits */}
       <ErrorModal
-        error={useSelector(state => state.trip.quotaError)}
+        error={quotaError}
         onClose={() => dispatch(clearQuotaError())}
       />
 

@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Wallet, PieChart, CreditCard, DollarSign, Plus, Trash2, Edit2, CheckCircle } from 'lucide-react';
 import { BUDGET_CATEGORIES } from '../data/budgetConstants';
 import { SectionTitle, Card, Button, Modal, ConfirmModal } from './CommonUI';
-import { setExpenses, updateTripDetails, setItinerary, setPreTripTasks, fetchExchangeRates, updateExchangeRate, fetchPairRate } from '../store/tripSlice';
+import { setExpenses, updateTripDetails, fetchExchangeRates, updateExchangeRate, fetchPairRate } from '../store/tripSlice';
+import { setItinerary } from '../store/itinerarySlice';
+import { setTasks as setPreTripTasks } from '../store/resourceSlice';
 import { calculateBudgetTotals, formatMoney, convertToHome, parseCost } from '../utils/helpers';
 import { SearchableSelect } from './SearchableSelect';
 import { ALL_CURRENCIES } from '../data/currencies';
@@ -13,7 +15,10 @@ import { RefreshCw, Coins } from 'lucide-react';
 
 export const Budget = () => {
     const dispatch = useDispatch();
-    const { expenses, itinerary, preTripTasks, tripDetails, language, exchangeRates = {} } = useSelector(state => state.trip);
+    const { expenses, tripDetails, exchangeRates = {} } = useSelector(state => state.trip);
+    const { items: itinerary } = useSelector(state => state.itinerary);
+    const { tasks: preTripTasks } = useSelector(state => state.resources);
+    const { language } = useSelector(state => state.ui);
     const t = LOCALES[language || 'en'];
 
     // Filtered list of currencies allowed (Home + Added)
@@ -70,7 +75,7 @@ export const Budget = () => {
         }
     };
 
-    const unifiedExpenses = [
+    const unifiedExpenses = useMemo(() => [
         ...expenses.map(e => ({ ...e, source: 'expense', date: e.date || new Date().toISOString(), isPaid: true })),
         ...itinerary.filter(i => parseCost(i.cost) > 0).map(i => ({ ...i, source: 'itinerary', amount: parseCost(i.cost), date: i.startDate || i.date, title: i.title, category: i.category || i.type })),
         ...preTripTasks.filter(t => parseCost(t.cost) > 0).map(t => ({ ...t, source: 'task', amount: parseCost(t.cost), date: 'Pre-Trip', title: t.text, category: t.category || 'Documents' }))
@@ -78,7 +83,7 @@ export const Budget = () => {
         if (a.date === 'Pre-Trip') return -1;
         if (b.date === 'Pre-Trip') return 1;
         return new Date(b.date) - new Date(a.date);
-    });
+    }), [expenses, itinerary, preTripTasks]);
 
     const openEditModal = (item) => {
         setEditingItem(item);

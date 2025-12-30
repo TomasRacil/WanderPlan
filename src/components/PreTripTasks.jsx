@@ -5,7 +5,8 @@ import { BUDGET_CATEGORIES } from '../data/budgetConstants';
 import { SearchableSelect } from './SearchableSelect';
 import { ALL_CURRENCIES } from '../data/currencies';
 import { SectionTitle, Modal, Button, ConfirmModal } from './CommonUI';
-import { setPreTripTasks, updateTripDetails, generateTrip } from '../store/tripSlice';
+import { updateTripDetails, generateTrip } from '../store/tripSlice';
+import { setTasks as setPreTripTasks } from '../store/resourceSlice';
 import { AttachmentManager } from './AttachmentManager';
 import { FilePreviewModal } from './FilePreviewModal';
 import { AiPromptTool } from './AiPromptTool';
@@ -14,7 +15,9 @@ import { getBudgetCategory } from '../utils/helpers';
 
 export const PreTripTasks = () => {
     const dispatch = useDispatch();
-    const { preTripTasks, itinerary, packingList, tripDetails, language, exchangeRates = {}, loading, documents = {} } = useSelector(state => state.trip);
+    const { tripDetails, exchangeRates = {} } = useSelector(state => state.trip);
+    const { tasks: preTripTasks, documents = {} } = useSelector(state => state.resources);
+    const { language, loading } = useSelector(state => state.ui);
 
     // Filtered list of currencies allowed (Home + Added)
     const activeCurrencies = ALL_CURRENCIES.filter(c =>

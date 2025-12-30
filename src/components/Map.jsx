@@ -101,7 +101,8 @@ const MapContent = ({ items, t }) => {
 };
 
 export const Map = () => {
-    const { itinerary, language } = useSelector(state => state.trip);
+    const { items: itinerary } = useSelector(state => state.itinerary);
+    const { language } = useSelector(state => state.ui);
     const t = LOCALES[language || 'en'];
 
     // Day Selection State

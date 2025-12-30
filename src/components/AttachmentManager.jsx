@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { addDocuments } from '../store/tripSlice';
+import { addDocuments } from '../store/resourceSlice';
+import { generateId } from '../utils/idGenerator';
 import { Paperclip, Link as LinkIcon, X, Plus, Image as ImageIcon, FileText, Trash2, ExternalLink, Download, Library, CheckSquare } from 'lucide-react';
 import { Button } from './CommonUI';
 
 export const AttachmentManager = ({ attachmentIds = [], links = [], onUpdate, t }) => {
     const dispatch = useDispatch();
-    const allDocuments = useSelector(state => state.trip.documents || {});
+    const allDocuments = useSelector(state => state.resources.documents || {});
     const [activeTab, setActiveTab] = useState('files');
     const [inputUrl, setInputUrl] = useState('');
     const [inputLabel, setInputLabel] = useState('');
@@ -40,7 +41,7 @@ export const AttachmentManager = ({ attachmentIds = [], links = [], onUpdate, t 
             const reader = new FileReader();
             reader.onloadend = () => {
                 const base64 = reader.result;
-                const id = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString(36).substr(2, 9));
+                const id = generateId('doc');
 
                 const newDoc = {
                     id,
@@ -111,7 +112,7 @@ export const AttachmentManager = ({ attachmentIds = [], links = [], onUpdate, t 
         }
 
         const newLink = {
-            id: (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString(36).substr(2, 9)),
+            id: generateId('link'),
             url: url,
             label: inputLabel || new URL(url).hostname
         };

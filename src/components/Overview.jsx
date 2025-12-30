@@ -3,7 +3,9 @@ import { useSelector, useDispatch } from 'react-redux';
 import { Calendar, CheckSquare, Camera, Sparkles, Globe, Wallet, Save, Download, Upload, Languages, Loader } from 'lucide-react';
 import { COLORS } from '../data/uiConstants';
 import { Card, Button } from './CommonUI';
-import { updateTripDetails, setCustomPrompt, setActiveTab, generateTrip, setPreTripTasks } from '../store/tripSlice';
+import { updateTripDetails, setCustomPrompt, generateTrip } from '../store/tripSlice';
+import { setActiveTab } from '../store/uiSlice';
+import { setTasks as setPreTripTasks } from '../store/resourceSlice';
 import { calculateBudgetTotals, formatMoney, parseCost } from '../utils/helpers';
 import { ALL_CURRENCIES } from '../data/currencies';
 import { SearchableSelect } from './SearchableSelect';
@@ -11,8 +13,11 @@ import { LOCALES } from '../i18n/locales';
 
 export const Overview = ({ onSave, onLoad }) => {
   const dispatch = useDispatch();
-  const { tripDetails, customPrompt, loading, phrasebook, expenses, itinerary, preTripTasks, exchangeRates = {} } = useSelector(state => state.trip);
-  const language = useSelector(state => state.trip.language || 'en');
+  const { tripDetails, customPrompt, expenses, exchangeRates = {} } = useSelector(state => state.trip);
+  const { items: itinerary } = useSelector(state => state.itinerary);
+  const { tasks: preTripTasks, phrasebook } = useSelector(state => state.resources);
+  const { loading, language: languageCode } = useSelector(state => state.ui);
+  const language = languageCode || 'en';
   const t = LOCALES[language];
 
   const budgetTotals = calculateBudgetTotals(expenses, itinerary, preTripTasks, tripDetails, exchangeRates);

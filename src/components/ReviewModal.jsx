@@ -1,7 +1,7 @@
 import React from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Check, X, Sparkles, RotateCcw, Trash2, Edit3, PlusCircle } from 'lucide-react';
-import { applyProposedChanges, discardProposedChanges, toggleProposedChange } from '../store/tripSlice';
+import { implementProposedChanges as applyProposedChanges, discardProposedChanges, toggleProposedChange } from '../store/tripSlice';
 import { Button } from './CommonUI';
 import { LOCALES } from '../i18n/locales';
 

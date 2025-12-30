@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 export const AVAILABLE_MODELS = {
     'gemini-3-flash-preview': { type: 'cloud', multimodal: true },
     'gemini-2.5-flash': { type: 'cloud', multimodal: true },
@@ -34,6 +36,24 @@ const getSchemaForArea = (targetArea, aiMode) => {
         default: return {};
     }
 };
+
+// Response Validation Schema
+const ResponseSchema = z.object({
+    changeSummary: z.string().optional(),
+    adds: z.array(z.any()).optional(),
+    updates: z.array(z.object({
+        id: z.string(),
+        fields: z.record(z.any()).optional(),
+        newItems: z.array(z.string()).optional(),
+        removeItems: z.array(z.string()).optional()
+    })).optional(),
+    deletes: z.union([z.array(z.string()), z.array(z.object({ id: z.string() }))]).optional(),
+    newDistilledData: z.union([
+        z.array(z.object({ attachmentId: z.string(), summary: z.string() })),
+        z.record(z.object({ extractedInfo: z.string() }))
+    ]).optional(),
+    phrasebook: z.any().optional()
+});
 
 export const generateTripContent = async (apiKey, tripDetails, customPrompt, itinerary, preTripTasks, packingList, language = 'en', targetArea = 'all', aiMode = 'add', selectedModel = 'gemini-3-flash-preview', allDocuments = {}, promptAttachments = []) => {
     const existingItinerary = JSON.stringify((itinerary || []).map(i => ({
@@ -262,6 +282,14 @@ Reflect this extraction in the 'newDistilledData' array.
     try {
         const json = JSON.parse(text);
 
+        // Validation
+        const validation = ResponseSchema.safeParse(json);
+        if (!validation.success) {
+            console.error("AI Response Validation Failed:", validation.error);
+            // We might throw here to trigger fallback or error in UI
+            throw new Error("AI Response failed validation: " + validation.error.message);
+        }
+
         // Adapter: Convert newDistilledData Array -> Object Map if present
         if (json.newDistilledData && Array.isArray(json.newDistilledData)) {
             const distilledMap = {};
@@ -273,18 +301,19 @@ Reflect this extraction in the 'newDistilledData' array.
             json.newDistilledData = distilledMap;
         }
 
-        // Post-Processing: Geocoding
-        await enhanceWithGeocoding(json, tripDetails, itinerary);
+        // Removed await enhanceWithGeocoding(json, tripDetails, itinerary);
+        // Geocoding is now handled by the caller dispatching a background implementation
 
         return json;
     } catch (e) {
-        console.error("JSON Parse Error:", e, "Failed Text:", text);
+        console.error("JSON Parse/Validation Error:", e, "Failed Text:", text);
         throw e;
     }
 };
 
 // Helper for nominatim
-const enhanceWithGeocoding = async (json, tripDetails, existingItinerary = []) => {
+// Exported so it can be called by Thunk
+export const enhanceWithGeocoding = async (json, tripDetails, existingItinerary = []) => {
     const itemsToGeocode = [];
 
     if (json.adds) itemsToGeocode.push(...json.adds);

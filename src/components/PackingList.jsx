@@ -3,12 +3,15 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Briefcase, Plus, Trash2, Edit2, Sparkles } from 'lucide-react';
 import { SectionTitle, Card, Modal, Button, ConfirmModal } from './CommonUI';
 import { AiPromptTool } from './AiPromptTool';
-import { setPackingList, generateTrip } from '../store/tripSlice';
+import { generateTrip } from '../store/tripSlice';
+import { setPackingList } from '../store/packingSlice';
+import { generateId } from '../utils/idGenerator';
 import { LOCALES } from '../i18n/locales';
 
 export const PackingList = () => {
     const dispatch = useDispatch();
-    const { packingList, language, loading } = useSelector(state => state.trip);
+    const packingList = useSelector(state => state.packing.list);
+    const { language, loading } = useSelector(state => state.ui);
     const [localPrompt, setLocalPrompt] = useState('');
     const [aiMode, setAiMode] = useState('add');
     const t = LOCALES[language || 'en'];
@@ -29,12 +32,12 @@ export const PackingList = () => {
         if (modal.type === 'category') {
             dispatch(setPackingList([
                 ...packingList,
-                { id: `pcat-${Date.now()}-${Math.random()}`, category: inputValue, items: [] }
+                { id: generateId('pcat'), category: inputValue, items: [] }
             ]));
         } else if (modal.type === 'item') {
             dispatch(setPackingList(packingList.map(cat => {
                 if (cat.id === modal.categoryId) {
-                    return { ...cat, items: [...cat.items, { id: `pack-${Date.now()}-${Math.random()}`, text: inputValue, done: false }] };
+                    return { ...cat, items: [...cat.items, { id: generateId('pack'), text: inputValue, done: false }] };
                 }
                 return cat;
             })));

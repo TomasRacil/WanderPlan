@@ -2,13 +2,18 @@ import React, { useState, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Modal, Button, ConfirmModal } from './CommonUI';
 import { Trash2, FileText, Image as ImageIcon, Eye, AlertCircle, Sparkles, Download, Edit2, Check, X } from 'lucide-react';
-import { deleteGlobalAttachment, updateDocument, removeUnusedDocuments } from '../store/tripSlice';
+import { deleteGlobalAttachment } from '../store/tripSlice';
+import { updateDocument } from '../store/resourceSlice';
+import { removeUnusedDocuments } from '../store/thunks';
 import { LOCALES } from '../i18n/locales';
 import { FilePreviewModal } from './FilePreviewModal';
 
 export const DocumentManagerModal = ({ isOpen, onClose }) => {
     const dispatch = useDispatch();
-    const { itinerary, preTripTasks, packingList, documents: storedDocuments = {}, language } = useSelector(state => state.trip);
+    const { items: itinerary } = useSelector(state => state.itinerary);
+    const { list: packingList } = useSelector(state => state.packing);
+    const { tasks: preTripTasks, documents: storedDocuments = {} } = useSelector(state => state.resources);
+    const { language } = useSelector(state => state.ui);
     const t = LOCALES[language || 'en'];
 
     const [viewingDistilled, setViewingDistilled] = useState(null);

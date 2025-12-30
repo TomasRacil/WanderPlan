@@ -88,6 +88,7 @@
 *   **Framework**: React 18
 *   **Build Tool**: Vite
 *   **State Management**: Redux Toolkit
+*   **Validation**: Zod
 *   **Testing**: Vitest
 *   **Styling**: Tailwind CSS
 *   **Icons**: Lucide React

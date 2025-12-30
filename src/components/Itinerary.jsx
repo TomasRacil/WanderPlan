@@ -4,7 +4,8 @@ import { Calendar, MapPin, Map as MapIcon, Edit2, Save as SaveIcon, Trash2, Chec
 import { BUDGET_CATEGORIES } from '../data/budgetConstants';
 import { EVENT_TYPES, TYPE_TO_CATEGORY } from '../data/eventConstants';
 import { SectionTitle, Card, Button, Modal, ConfirmModal } from './CommonUI';
-import { setItinerary, updateTripDetails, generateTrip } from '../store/tripSlice';
+import { updateTripDetails, generateTrip } from '../store/tripSlice';
+import { setItinerary } from '../store/itinerarySlice';
 import { getEventIcon, getEventColor, generateGoogleMapsLink, parseCost, getBudgetCategory } from '../utils/helpers';
 import { SearchableSelect } from './SearchableSelect';
 import { ALL_CURRENCIES } from '../data/currencies';
@@ -21,7 +22,10 @@ const getCategory = (type) => {
 
 export const Itinerary = () => {
     const dispatch = useDispatch();
-    const { itinerary, preTripTasks, packingList, language, tripDetails, exchangeRates = {}, loading, documents = {} } = useSelector(state => state.trip);
+    const { tripDetails, exchangeRates = {} } = useSelector(state => state.trip);
+    const { items: itinerary } = useSelector(state => state.itinerary);
+    const { documents = {} } = useSelector(state => state.resources);
+    const { language, loading } = useSelector(state => state.ui);
     const [localPrompt, setLocalPrompt] = useState('');
 
     // Filtered list of currencies allowed (Home + Added)
