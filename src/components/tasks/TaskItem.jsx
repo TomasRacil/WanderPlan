@@ -1,5 +1,6 @@
-import React from 'react';
-import { Edit2, Trash2, CheckCircle, FileText, Paperclip, Link as LinkIcon } from 'lucide-react';
+import { Edit2, Trash2, CheckCircle, FileText, Paperclip, Link as LinkIcon, GripVertical } from 'lucide-react';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 export const TaskItem = ({
     task,
@@ -11,10 +12,36 @@ export const TaskItem = ({
     documents = {},
     t
 }) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id: task.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 50 : undefined,
+    };
+
     return (
-        <div className={`group bg-white rounded-xl p-4 border transition-all duration-200 ${task.done ? 'border-slate-100 opacity-75' : 'border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-100'}`}>
+        <div
+            ref={setNodeRef}
+            style={style}
+            className={`group bg-white rounded-xl p-4 border transition-all duration-200 ${isDragging ? 'opacity-50 border-indigo-500 shadow-xl' : (task.done ? 'border-slate-100 opacity-75' : 'border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-100')}`}
+        >
             <div className="flex items-start gap-4">
-                <div className="flex items-center h-6">
+                <div className="flex items-center gap-2 h-6">
+                    <div
+                        {...attributes}
+                        {...listeners}
+                        className="p-1 cursor-grab active:cursor-grabbing text-slate-300 hover:text-indigo-400 transition-colors opacity-40 hover:opacity-100 touch-none"
+                    >
+                        <GripVertical size={16} />
+                    </div>
                     <input
                         type="checkbox"
                         checked={task.done}

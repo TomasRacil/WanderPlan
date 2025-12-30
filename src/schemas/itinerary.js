@@ -1,7 +1,15 @@
 import { commonProperties } from './common';
+import { EVENT_TYPES } from '../data/eventConstants';
+import { BUDGET_CATEGORIES } from '../data/budgetConstants';
 
 export const getItinerarySchema = (aiMode) => {
     const schemas = {};
+
+    const typeDesc = `Must be one of: ${EVENT_TYPES.join(', ')}`;
+    const catDesc = `Must be one of: ${BUDGET_CATEGORIES.join(', ')}`;
+    // Helper to generate location description - centralized string
+    const locDesc = "Place name or full address (preferably in local language or internationally understandable format)";
+    const endLocDesc = "Destination location if applicable (preferably in local language or internationally understandable format)";
 
     if (aiMode === 'add' || aiMode === 'fill') {
         schemas.adds = {
@@ -13,17 +21,16 @@ export const getItinerarySchema = (aiMode) => {
                     startDate: { type: "STRING", description: "Start date in YYYY-MM-DD format" },
                     startTime: { type: "STRING", description: "Start time in HH:mm format" },
                     duration: { type: "NUMBER", description: "Duration in minutes" },
-                    type: { type: "STRING", description: "e.g., transport, stay, activity, meal" },
+                    type: { type: "STRING", description: typeDesc },
                     cost: { type: "NUMBER", description: "Cost of the activity" },
                     currency: commonProperties.currency,
                     location: { ...commonProperties.location, description: "Exact address or place name" },
                     endLocation: { type: "STRING", description: "Arrival address for transport items" },
-                    timeZone: { type: "STRING", description: "Valid IANA timezone (e.g., 'Asia/Tokyo')" },
                     notes: commonProperties.notes,
-                    category: { type: "STRING" },
+                    category: { type: "STRING", description: catDesc },
                     attachmentIds: { ...commonProperties.attachmentIds, description: "MANDATORY: List of unique document IDs used to create this item." }
                 },
-                required: ["title", "startDate", "cost"]
+                required: ["title", "startDate", "startTime", "type", "duration", "location"]
             }
         };
     }
@@ -42,12 +49,12 @@ export const getItinerarySchema = (aiMode) => {
                             startDate: { type: "STRING", description: "YYYY-MM-DD" },
                             startTime: { type: "STRING", description: "HH:mm" },
                             duration: { type: "NUMBER", description: "Minutes" },
-                            cost: commonProperties.cost,
+                            type: { type: "STRING", description: typeDesc },
+                            cost: { type: "NUMBER", description: "Cost of the activity" },
                             currency: commonProperties.currency,
-                            location: { ...commonProperties.location, description: "Place name or full address" },
-                            endLocation: { type: "STRING", description: "Destination location if applicable" },
-                            timeZone: { type: "STRING" },
-                            category: { type: "STRING" },
+                            location: { ...commonProperties.location, description: locDesc },
+                            endLocation: { type: "STRING", description: endLocDesc },
+                            category: { type: "STRING", description: catDesc },
                             notes: commonProperties.notes,
                             attachmentIds: { ...commonProperties.attachmentIds, description: "MANDATORY: Document IDs that support this update." }
                         }

@@ -31,59 +31,76 @@ export const AiPromptTool = ({ onGenerate, loading, aiMode, setAiMode, t, placeh
     };
 
     return (
-        <div className="flex flex-col gap-2 w-full md:w-auto">
-            <div className="grid grid-cols-[auto_1fr_auto] grid-rows-2 md:flex md:flex-row items-stretch md:items-center bg-white border border-slate-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all overflow-hidden w-full">
-                <div className="row-start-1 col-start-1 flex items-center px-3 py-2 border-r border-b md:border-b-0 border-slate-100 bg-slate-50/50 h-full">
-                    <Sparkles size={14} className="text-indigo-500" />
+        <div className="flex flex-col gap-2 w-full">
+            <div className="flex items-stretch bg-white border border-slate-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all overflow-hidden w-full">
+                {/* Left Sidebar: Icon */}
+                <div className="flex items-center justify-center px-4 bg-slate-50/50 border-r border-slate-100 flex-shrink-0">
+                    <Sparkles size={16} className="text-indigo-500" />
                 </div>
 
-                <select
-                    value={aiMode}
-                    onChange={(e) => setAiMode(e.target.value)}
-                    className="row-start-1 col-start-2 bg-transparent px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 outline-none border-b md:border-b-0 border-slate-100 h-full cursor-pointer hover:bg-slate-50 transition-colors"
-                >
-                    <option value="add">{t?.addNew}</option>
-                    <option value="update">{t?.updateExisting}</option>
-                    <option value="fill">{t?.fillGaps}</option>
-                    <option value="dedupe">{t?.removeDuplicates}</option>
-                </select>
+                {/* Center Content: Stacked Select + Input */}
+                <div className="flex-1 flex flex-col min-w-0">
+                    <div className="border-b border-slate-100">
+                        <select
+                            value={aiMode}
+                            onChange={(e) => setAiMode(e.target.value)}
+                            className="bg-transparent px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 outline-none w-full cursor-pointer hover:bg-slate-50 transition-colors"
+                        >
+                            <option value="add">{t?.addNew}</option>
+                            <option value="update">{t?.updateExisting}</option>
+                            <option value="fill">{t?.fillGaps}</option>
+                            <option value="dedupe">{t?.removeDuplicates}</option>
+                        </select>
+                    </div>
 
-                <div className="row-start-2 col-start-1 col-span-2 md:col-span-1 flex items-center flex-1 min-w-[200px] border-r md:border-r-0 border-slate-100">
-                    <input
-                        type="text"
-                        value={localPrompt}
-                        onChange={(e) => setLocalPrompt(e.target.value)}
-                        placeholder={placeholder}
-                        className="bg-transparent px-3 py-2 text-xs outline-none w-full text-slate-700 placeholder:text-slate-400 font-medium"
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                handleGenerate();
-                            }
-                        }}
-                    />
-                    {/* Attachment Toggle */}
-                    <button
-                        onClick={() => setShowAttachments(!showAttachments)}
-                        className={`p-2 mr-1 rounded-full transition-colors ${attachments.length > 0 ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-600'}`}
-                        title={t?.addAttachment}
-                    >
-                        <Paperclip size={14} />
-                    </button>
-                    {attachmentIds.length > 0 && (
-                        <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-1.5 py-0.5 rounded-full mr-2">
-                            {attachmentIds.length}
-                        </span>
-                    )}
+                    <div className="flex flex-1 items-stretch min-h-[44px]">
+                        <textarea
+                            rows="1"
+                            value={localPrompt}
+                            onChange={(e) => {
+                                setLocalPrompt(e.target.value);
+                                e.target.style.height = 'auto';
+                                e.target.style.height = e.target.scrollHeight + 'px';
+                            }}
+                            placeholder={placeholder}
+                            className="bg-transparent px-3 py-3 text-xs outline-none w-full text-slate-700 placeholder:text-slate-400 font-medium resize-none overflow-hidden max-h-[200px] leading-relaxed"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleGenerate();
+                                }
+                            }}
+                        />
+                        {/* Attachment Toggle inside Prompt area */}
+                        <div className="flex items-center pr-1 self-center">
+                            <button
+                                onClick={() => setShowAttachments(!showAttachments)}
+                                className={`p-1.5 rounded-full transition-colors flex items-center justify-center ${attachmentIds.length > 0 ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-600'}`}
+                                title={t?.addAttachment}
+                            >
+                                <Paperclip size={12} />
+                            </button>
+                            {attachmentIds.length > 0 && (
+                                <span className="text-[9px] bg-indigo-100 text-indigo-700 font-bold px-1.5 py-0.5 rounded-full mr-2">
+                                    {attachmentIds.length}
+                                </span>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
+                {/* Right Sidebar: Generate Button */}
                 <button
                     onClick={handleGenerate}
                     disabled={loading}
-                    className={`row-start-1 row-span-2 col-start-3 md:col-auto px-4 py-2 text-xs font-bold text-white transition-all flex items-center justify-center gap-2 h-full md:h-auto ${loading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95'}`}
+                    className={`px-6 text-xs font-bold text-white transition-all flex items-center justify-center gap-2 min-w-[100px] sm:min-w-[120px] self-stretch flex-shrink-0 ${loading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98]'}`}
                 >
-                    {loading ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
-                    <span className={loading ? "" : "md:inline"}>{loading ? "" : (t?.generatePlan || "Generate")}</span>
+                    {loading && (
+                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    )}
+                    <span className="text-center leading-tight">
+                        {loading ? "..." : (t?.generatePlan || "Generate")}
+                    </span>
                 </button>
             </div>
 

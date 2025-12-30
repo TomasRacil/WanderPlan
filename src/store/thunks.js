@@ -1,8 +1,9 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
-import { generateTripContent, enhanceWithGeocoding } from '../services/gemini';
+import { generateTripContent } from '../services/gemini';
+import { enhanceWithGeocoding, fetchTimezone } from '../services/geocoding';
 import { get } from 'idb-keyval';
 import { migrateLegacyState } from './migration';
-import { applyItineraryChanges, setItinerary } from './itinerarySlice';
+import { applyItineraryChanges, setItinerary, updateItineraryItem } from './itinerarySlice';
 import { applyPackingChanges, setPackingList } from './packingSlice';
 import { applyTaskChanges, deleteDocument, removeAttachmentReference as removeTaskRef, setTasks, setDocuments, setDistilledContext, setPhrasebook } from './resourceSlice';
 import { updateTripDetails, setExpenses, setApiKey, setExchangeRates, setSelectedModel, setCustomPrompt } from './tripSlice';
@@ -13,6 +14,17 @@ export const finalizeTripData = createAsyncThunk(
     async ({ data, tripDetails, itinerary }, { dispatch }) => {
         await enhanceWithGeocoding(data, tripDetails, itinerary);
         return { data };
+    }
+);
+
+export const resolveLocationTimezone = createAsyncThunk(
+    'itinerary/resolveTimezone',
+    async ({ lat, lng, itemId, field = 'timeZone' }, { dispatch }) => {
+        const tz = await fetchTimezone(lat, lng);
+        if (tz && itemId) {
+            dispatch(updateItineraryItem({ id: itemId, updates: { [field]: tz } }));
+        }
+        return tz;
     }
 );
 

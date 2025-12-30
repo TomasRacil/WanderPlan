@@ -32,19 +32,22 @@ export const TimelineView = ({
             {sortedDates.map(dateKey => (
                 <div key={dateKey} className="relative">
                     {/* Day Header */}
-                    <div className="flex items-center justify-between mb-6 bg-slate-100 p-3 rounded-xl sticky top-0 z-30 shadow-sm border border-slate-200">
-                        <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                            <Calendar size={18} className="text-indigo-600" />
-                            {new Date(dateKey).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-                        </h3>
-                        <a
-                            href={generateGoogleMapsLink(groupedItinerary[dateKey])}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs bg-white text-blue-600 px-3 py-1.5 rounded-lg border border-blue-100 hover:bg-blue-50 flex items-center gap-1 font-medium transition-colors"
-                        >
-                            <MapIcon size={12} /> {t.viewDailyRoute}
-                        </a>
+                    <div className="flex items-center justify-between mb-6 p-3 rounded-xl sticky top-0 z-30 shadow-sm border transition-all bg-slate-100 text-slate-700 border-slate-200">
+                        <div className="flex items-center gap-3">
+                            <h3 className="font-bold">
+                                {new Date(dateKey).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                            </h3>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <a
+                                href={generateGoogleMapsLink(groupedItinerary[dateKey])}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[10px] px-3 py-1.5 rounded-lg border font-bold transition-colors uppercase tracking-wider bg-white text-blue-600 border-blue-100 hover:bg-blue-50"
+                            >
+                                {t.viewDailyRoute}
+                            </a>
+                        </div>
                     </div>
 
                     {/* Events Line */}

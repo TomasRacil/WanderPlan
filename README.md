@@ -16,12 +16,14 @@
     *   **[NEW]** Trip Reporting Currency: Change the primary currency used for totals and conversions.
 *   **Itinerary Management**:
     *   Add events (Flights, Activities, Hotels) with date, duration, and flexible timezones.
-    *   **[NEW]** **Automatic Timezone Detection**: Automatically fetches the correct timezone based on coordinates using `timeapi.io`.
+    *   **[NEW]** **Automatic Timezone Detection**: Automatically fetches the correct timezone based on coordinates using `timeapi.io`'s background service.
+    *   **[NEW]** **Background Resolution**: Timezones are resolved asynchronously without blocking the UI, ensuring seamless data entry.
     *   **[NEW]** **Duration-based Events**: Specify duration in hours/minutes; end times are calculated automatically.
     *   **[NEW]** **Enhanced Display**: Itinerary cards show explicit start/end dates and times with `+N day` indicators for overnight travel.
     *   **[NEW]** **Timezone Shifts**: Clearly displays destination timezones if they differ from the starting point.
     *   **[NEW]** **Anchored Sticky Headers**: Day headers stay perfectly docked under the navigation bar as you scroll.
     *   **[NEW]** Support for **Overnight Activities** (Start Date != End Date).
+    *   **[NEW]** **Smart Drag-and-Drop**: Interactive reordering of timeline events with smooth animations.
     *   Automatic sorting of events by date and time in a beautiful timeline view.
     *   Google Maps route link generation.
 *   **AI Integration 🤖**:
@@ -35,12 +37,19 @@
     *   **[NEW] Specialized Extraction**: Forceful instructions and schema enforcements ensure attachment IDs are linked to items created from them.
     *   **Context Aware**: Analyzes existing trip data (dates, style, current items) to provide relevant suggestions.
     *   **Garbage Collection**: Automatically cleans up AI-extracted context when attachments are deleted to keep memory fresh.
-*   **Personal Traveler Profiles 🧑‍🤝‍🧑**:
+*   **Traveler Management 🧑‍🤝‍🧑**:
     *   **Detailed Profiles**: Add travel companions with **Nickname, Age, and Sex**.
-    *   **Context-Aware Suggestions**: AI automatically tailors recommendations based on traveler demographics (e.g., specialized gear for different age groups).
-    *   **Ownership Tracking**: Explicitly link bags to individual travelers.
+    *   **[NEW] Bag Assignment**: explicitly link bags to individual travelers (e.g., "Dad's Suitcase", "Mom's Carry-on").
+    *   **[NEW] Context-Aware AI**: The AI now understands who is traveling and suggests appropriate gear/activities based on the group composition (e.g., kids' gear, accessibility needs).
+*   **Advanced Map Integration 🗺️**:
+    *   **Itinerary Map**: Interactive daily route visualization embedded in the itinerary.
+    *   **Day Focus**: Dynamic filtering of map markers based on selected travel days.
+*   **Interactive Drag-and-Drop 🎯**:
+    *   **Fluid Reordering**: Reorder tasks and packing items with smooth animations.
+    *   **Cross-Container Movement**: Drag items between categories or across different bags/owners.
 *   **Smart Checklists**:
     *   **Pre-Trip Tasks**: Manage visas, vaccinations, and documents.
+    *   **Packing List**: Categorized packing essentials.
     *   **Packing List**: Categorized packing essentials.
     *   **[NEW] Smart Baggage Management 🧳**:
         *   Define custom baggage (Checked Bags, Carry-ons, Personal Items) with weight limits.
@@ -49,6 +58,7 @@
         *   **Global Display Format**: Bags are identified as `Owner - Bag Name` across the entire application.
         *   **AI-Smart Sorting**: AI automatically assigns items to appropriate bags (e.g., liquids in checked luggage, electronics in carry-ons).
         *   **Dynamic Badging**: Items display their assigned bag or AI-suggested bag type.
+    *   **[NEW] Drag-and-Drop Sorting**: Easily move items between bags or categories to balance weight and ownership.
 *   **Data Persistence**:
     *   **Save/Load**: Export your entire trip plan to a JSON file or **[NEW] ZIP Archive** (including attachments) and load it back anytime.
     *   **IndexedDB**: Migrated storage layer to handle large file attachments (images/PDFs) without size limits.
@@ -87,12 +97,14 @@
 *   **[x] AI Review System**: Allow users to preview and vet AI suggestions.
 *   **[x] PWA Support**: Convert to Progressive Web App with update controls.
 *   **[x] Interactive Map**: Full Leaflet integration with date-based filtering.
-*   **[x] Automatic Timezones**: Coordinate-based timezone detection.
-*   **[ ] Calendar Export**: Export itinerary to **.ics** format for Google Calendar.
+*   **[x] Automatic Timezones**: Coordinate-based timezone detection with background resolution.
 *   **[ ] Multi-Trip Management**: Allow users to create, save, and switch between multiple trips locally.
+*   **[ ] Calendar Export**: Export itinerary to **.ics** format for Google Calendar.
 *   **[ ] Cloud Sync**: User authentication and database storage for accessing trips across devices.
 *   **[ ] Collaborative Editing**: Real-time multiplayer editing for group travel planning.
 *   **[ ] Mobile App**: React Native mobile application for native experience.
+*   **[ ] Import Modal**: Create a simple text input modal ("Paste your email/confirmation here").
+*   **[ ] Extraction Prompt**: Create a dedicated "Extraction Mode" prompt that instructs Gemini to parse raw text into Itinerary, Items and Tasks specifically.
 
 ---
 

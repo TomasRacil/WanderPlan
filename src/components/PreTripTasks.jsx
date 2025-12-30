@@ -12,6 +12,21 @@ import { FilePreviewModal } from './common/FilePreviewModal';
 import { AiPromptTool } from './common/AiPromptTool';
 import { LOCALES } from '../i18n/locales';
 import { getBudgetCategory } from '../utils/helpers';
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { reorderTasks } from '../store/resourceSlice';
 
 // Sub-components
 import { TaskItem } from './tasks/TaskItem';
@@ -119,6 +134,27 @@ export const PreTripTasks = () => {
         setConfirmDelete({ isOpen: false, id: null });
     };
 
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 5, // Allow some movement before drag starts
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    const handleDragEnd = (event) => {
+        const { active, over } = event;
+
+        if (active.id !== over?.id) {
+            const oldIndex = preTripTasks.findIndex((t) => t.id === active.id);
+            const newIndex = preTripTasks.findIndex((t) => t.id === over.id);
+            dispatch(reorderTasks({ startIndex: oldIndex, endIndex: newIndex }));
+        }
+    };
+
     return (
         <div className="animate-fadeIn w-full">
             <div className="mb-6">
@@ -167,19 +203,35 @@ export const PreTripTasks = () => {
                         {t.emptyTasks}
                     </div>
                 )}
-                {[...preTripTasks].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1)).map(task => (
-                    <TaskItem
-                        key={task.id}
-                        task={task}
-                        onToggle={toggleTask}
-                        onEdit={openEditModal}
-                        onDelete={deleteTask}
-                        onTogglePaid={togglePaid}
-                        onPreviewFile={setPreviewFile}
-                        documents={documents}
-                        t={t}
-                    />
-                ))}
+                <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                >
+                    {(() => {
+                        const sortedTasks = [...preTripTasks].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
+                        return (
+                            <SortableContext
+                                items={sortedTasks.map(t => t.id)}
+                                strategy={verticalListSortingStrategy}
+                            >
+                                {sortedTasks.map(task => (
+                                    <TaskItem
+                                        key={task.id}
+                                        task={task}
+                                        onToggle={toggleTask}
+                                        onEdit={openEditModal}
+                                        onDelete={deleteTask}
+                                        onTogglePaid={togglePaid}
+                                        onPreviewFile={setPreviewFile}
+                                        documents={documents}
+                                        t={t}
+                                    />
+                                ))}
+                            </SortableContext>
+                        );
+                    })()}
+                </DndContext>
             </div>
 
             <TaskFormModal

@@ -282,7 +282,7 @@ export const LOCALES = {
         budget: "Rozpočet",
         currency: "Měna",
         customPrompt: "Vlastní instrukce...",
-        generatePlan: "Vygenerovat plán",
+        generatePlan: "Generuj",
         generating: "Generuji vaši cestu...",
         download: "Uložit",
         upload: "Načíst",

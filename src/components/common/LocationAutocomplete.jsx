@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSelector } from 'react-redux';
 import { MapPin, Loader2 } from 'lucide-react';
+import { formatAddress } from '../../services/geocoding';
 
 export const LocationAutocomplete = ({ value, onChange, onSelect, onTimezoneSelect, onTimezoneLoading, placeholder, className }) => {
     const language = useSelector(state => state.trip.language || 'en');
@@ -60,15 +61,8 @@ export const LocationAutocomplete = ({ value, onChange, onSelect, onTimezoneSele
         const { properties, geometry } = feature;
         const [lng, lat] = geometry.coordinates;
 
-        // Construct a display name from Photon properties
-        const parts = [
-            properties.name,
-            properties.street,
-            properties.city || properties.town,
-            properties.state,
-            properties.country
-        ].filter(Boolean);
-        const fullAddress = parts.join(', ');
+        // Construct a display name using shared logic
+        const fullAddress = formatAddress(properties, properties.display_name || properties.name);
 
         setQuery(fullAddress);
         setIsOpen(false);
@@ -76,42 +70,11 @@ export const LocationAutocomplete = ({ value, onChange, onSelect, onTimezoneSele
         // Immediate Select Update (No blocking)
         onChange(fullAddress);
         onSelect({
-            name: properties.name || fullAddress,
+            name: fullAddress, // Use the precise address as the primary name
             address: fullAddress,
             lat,
-            lng,
-            timeZone: '' // Will need to be filled asynchronously
+            lng
         });
-
-        // Async Timezone Fetch
-        if (onTimezoneSelect || onTimezoneLoading) {
-            const fetchTimezone = async () => {
-                if (onTimezoneLoading) onTimezoneLoading(true);
-                try {
-                    const controller = new AbortController();
-                    const id = setTimeout(() => controller.abort(), 10000);
-
-                    const tzResponse = await fetch(`https://www.timeapi.io/api/TimeZone/coordinate?latitude=${lat}&longitude=${lng}`, {
-                        signal: controller.signal
-                    });
-                    clearTimeout(id);
-
-                    if (tzResponse.ok) {
-                        const tzData = await tzResponse.json();
-                        if (onTimezoneSelect) onTimezoneSelect(tzData.timeZone);
-                    }
-                } catch (error) {
-                    if (error.name === 'AbortError') {
-                        console.warn("Timezone fetch timed out or was aborted.");
-                    } else {
-                        console.error("Timezone fetch error:", error);
-                    }
-                } finally {
-                    if (onTimezoneLoading) onTimezoneLoading(false);
-                }
-            };
-            fetchTimezone();
-        }
     };
 
     return (
@@ -136,7 +99,12 @@ export const LocationAutocomplete = ({ value, onChange, onSelect, onTimezoneSele
                 <div className="absolute z-50 w-full mt-1 bg-white rounded-lg shadow-xl border border-slate-100 max-h-60 overflow-y-auto">
                     {results.map((feature, idx) => {
                         const { properties } = feature;
-                        const label = [properties.street, properties.city || properties.town, properties.state, properties.country].filter(Boolean).join(', ');
+                        const label = formatAddress(properties, properties.display_name || properties.name);
+                        // If name is just the street, use the fuller label as the title
+                        const isGenericName = properties.name === properties.street || !properties.name;
+                        const title = isGenericName ? label : (properties.name || label);
+                        const subtitle = isGenericName ? properties.country : label.replace(title + ', ', '');
+
                         return (
                             <button
                                 key={idx}
@@ -147,8 +115,8 @@ export const LocationAutocomplete = ({ value, onChange, onSelect, onTimezoneSele
                                 }}
                                 className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm border-b border-slate-50 last:border-0 transition-colors"
                             >
-                                <p className="font-bold text-slate-700 truncate">{properties.name}</p>
-                                <p className="text-xs text-slate-500 truncate">{label}</p>
+                                <p className="font-bold text-slate-700 truncate">{title}</p>
+                                <p className="text-xs text-slate-500 truncate">{subtitle}</p>
                             </button>
                         );
                     })}

@@ -80,6 +80,13 @@ export const resourceSlice = createSlice({
             const id = String(action.payload);
             state.tasks = state.tasks.filter(t => String(t.id) !== id);
         },
+        reorderTasks: (state, action) => {
+            const { startIndex, endIndex } = action.payload;
+            const result = Array.from(state.tasks);
+            const [removed] = result.splice(startIndex, 1);
+            result.splice(endIndex, 0, removed);
+            state.tasks = result;
+        },
         removeAttachmentReference: (state, action) => {
             const docId = String(action.payload);
             state.tasks.forEach(t => {
@@ -151,6 +158,7 @@ export const {
     setDocuments, addDocuments, updateDocument, deleteDocument,
     setDistilledContext, updateDistilledContext,
     setTasks, addTask, updateTask, deleteTask, applyTaskChanges,
+    reorderTasks,
     removeAttachmentReference,
     setPhrasebook, addToPhrasebook
 } = resourceSlice.actions;

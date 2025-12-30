@@ -8,6 +8,7 @@ import { AttachmentManager } from '../common/AttachmentManager';
 import { EVENT_TYPES } from '../../data/eventConstants';
 import { updateTripDetails } from '../../store/tripSlice';
 import { useDispatch } from 'react-redux';
+import { resolveLocationTimezone } from '../../store/thunks';
 
 export const EventFormModal = ({
     isOpen,
@@ -240,16 +241,26 @@ export const EventFormModal = ({
                                     onSelect={(item) => {
                                         setValue('location', item.name);
                                         setValue('coordinates', { lat: item.lat, lng: item.lng });
-                                    }}
-                                    onTimezoneLoading={setLoadingStartTz}
-                                    onTimezoneSelect={(tz) => {
-                                        if (tz) {
-                                            setValue('timeZone', tz);
-                                            // Auto-sync dest TZ if it was same as start or empty
-                                            if (!endLocation || timeZone === destinationTimeZone) {
-                                                setValue('destinationTimeZone', tz);
-                                            }
-                                        }
+
+                                        // Background Timezone Fetch
+                                        setLoadingStartTz(true);
+                                        dispatch(resolveLocationTimezone({
+                                            lat: item.lat,
+                                            lng: item.lng,
+                                            itemId: initialData?.id,
+                                            field: 'timeZone'
+                                        }))
+                                            .unwrap()
+                                            .then(tz => {
+                                                if (tz) {
+                                                    setValue('timeZone', tz);
+                                                    // Auto-sync dest TZ if it was same as start or empty
+                                                    if (!endLocation || watch('timeZone') === watch('destinationTimeZone')) {
+                                                        setValue('destinationTimeZone', tz);
+                                                    }
+                                                }
+                                            })
+                                            .finally(() => setLoadingStartTz(false));
                                     }}
                                     placeholder={t.startPlaceholder}
                                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
@@ -272,10 +283,20 @@ export const EventFormModal = ({
                                     onSelect={(item) => {
                                         setValue('endLocation', item.name);
                                         setValue('endCoordinates', { lat: item.lat, lng: item.lng });
-                                    }}
-                                    onTimezoneLoading={setLoadingEndTz}
-                                    onTimezoneSelect={(tz) => {
-                                        if (tz) setValue('destinationTimeZone', tz);
+
+                                        // Background Timezone Fetch
+                                        setLoadingEndTz(true);
+                                        dispatch(resolveLocationTimezone({
+                                            lat: item.lat,
+                                            lng: item.lng,
+                                            itemId: initialData?.id,
+                                            field: 'destinationTimeZone'
+                                        }))
+                                            .unwrap()
+                                            .then(tz => {
+                                                if (tz) setValue('destinationTimeZone', tz);
+                                            })
+                                            .finally(() => setLoadingEndTz(false));
                                     }}
                                     placeholder={t.endPlaceholder}
                                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"

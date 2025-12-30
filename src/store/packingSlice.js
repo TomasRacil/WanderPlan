@@ -237,6 +237,43 @@ export const packingSlice = createSlice({
                 }
             }
         },
+        reorderCategories: (state, action) => {
+            const { startIndex, endIndex } = action.payload;
+            const result = Array.from(state.list);
+            const [removed] = result.splice(startIndex, 1);
+            result.splice(endIndex, 0, removed);
+            state.list = result;
+        },
+        reorderItemsInCategory: (state, action) => {
+            const { categoryId, startIndex, endIndex } = action.payload;
+            const cat = state.list.find(c => c.id === categoryId);
+            if (cat) {
+                const result = Array.from(cat.items);
+                const [removed] = result.splice(startIndex, 1);
+                result.splice(endIndex, 0, removed);
+                cat.items = result;
+            }
+        },
+        moveItemBetweenCategories: (state, action) => {
+            const { sourceCategoryId, destinationCategoryId, sourceIndex, destinationIndex, itemId } = action.payload;
+            const sourceCat = state.list.find(c => c.id === sourceCategoryId);
+            const destCat = state.list.find(c => c.id === destinationCategoryId);
+
+            if (sourceCat && destCat) {
+                const item = sourceCat.items.find(i => i.id === itemId);
+                if (item) {
+                    sourceCat.items = sourceCat.items.filter(i => i.id !== itemId);
+                    destCat.items.splice(destinationIndex, 0, item);
+                }
+            }
+        },
+        setItemBag: (state, action) => {
+            const { itemId, bagId } = action.payload;
+            state.list.forEach(cat => {
+                const item = cat.items.find(i => i.id === itemId);
+                if (item) item.bagId = bagId;
+            });
+        },
     },
     extraReducers: (builder) => {
         builder.addCase(initializeTrip.fulfilled, (state, action) => {
@@ -257,7 +294,8 @@ export const {
     deletePackingCategory,
     removeAttachmentReference,
     applyPackingChanges,
-    addBag, updateBag, deleteBag, updatePackingItem, clearTravelerFromBags
+    addBag, updateBag, deleteBag, updatePackingItem, clearTravelerFromBags,
+    reorderCategories, reorderItemsInCategory, moveItemBetweenCategories, setItemBag
 } = packingSlice.actions;
 
 export default packingSlice.reducer;

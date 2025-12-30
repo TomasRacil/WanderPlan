@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { generateTripContent, enhanceWithGeocoding } from './gemini';
+import { generateTripContent } from './gemini';
+import { enhanceWithGeocoding } from './geocoding';
 
 // Mock window.ai for local nano tests
 global.window = {
@@ -174,71 +175,6 @@ describe('gemini.js Service', () => {
         } catch (e) {
             expect(e.message).toBe("No content generated");
         }
-    });
-}); // Close empty content test
-
-describe('enhanceWithGeocoding', () => {
-    beforeEach(() => {
-        vi.resetAllMocks();
-    });
-
-    it('should use Strategy 1 (Destination Constraint) when destination matches', async () => {
-        const tripDetails = { destination: 'New Zealand' };
-        const json = { adds: [{ location: 'Beach', startDate: '2025-01-01' }] };
-
-        // Mock fetch to capture the query
-        global.fetch.mockImplementation(async (url) => {
-            if (decodeURIComponent(url).includes('Beach, New Zealand')) {
-                return {
-                    json: async () => [{ display_name: 'The Beach, New Zealand', lat: 1, lon: 2 }]
-                };
-            }
-            return { json: async () => [] };
-        });
-
-        await enhanceWithGeocoding(json, tripDetails, []);
-
-        expect(global.fetch).toHaveBeenCalled();
-        // Verify content was updated
-        expect(json.adds[0].location).toBe('The Beach, New Zealand');
-    });
-
-    it('should use Strategy 2 (Local Context) when nearby event suggests region', async () => {
-        const tripDetails = { destination: 'New Zealand' };
-        const existingItinerary = [{
-            startDate: '2025-01-01T10:00:00',
-            location: 'Hobbiton, Matamata, New Zealand'
-        }];
-        const json = { adds: [{ location: 'The Green Dragon', startDate: '2025-01-01T12:00:00' }] };
-
-        global.fetch.mockImplementation(async (url) => {
-            if (decodeURIComponent(url).includes('Matamata, New Zealand')) {
-                return {
-                    json: async () => [{ display_name: 'The Green Dragon Inn, Matamata', lat: 3, lon: 4 }]
-                };
-            }
-            return { json: async () => [] };
-        });
-
-        await enhanceWithGeocoding(json, tripDetails, existingItinerary);
-        expect(json.adds[0].location).toBe('The Green Dragon Inn, Matamata');
-    });
-
-    it('should fallback to Strategy 3 (Original) if constraints fail', async () => {
-        const tripDetails = { destination: 'Nowhere' };
-        const json = { adds: [{ location: 'Unique Place', startDate: '2025-01-01' }] };
-
-        global.fetch.mockImplementation(async (url) => {
-            if (url.includes('q=Unique%20Place&')) {
-                return {
-                    json: async () => [{ display_name: 'Unique Place, World', lat: 5, lon: 6 }]
-                };
-            }
-            return { json: async () => [] };
-        });
-
-        await enhanceWithGeocoding(json, tripDetails, []);
-        expect(json.adds[0].location).toBe('Unique Place, World');
     });
 });
 

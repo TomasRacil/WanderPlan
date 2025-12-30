@@ -22,7 +22,7 @@ let DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 // Component to represent map content and bounds
-const MapContent = ({ items, t }) => {
+export const MapContent = ({ items, t }) => {
     const map = useMap();
     const markers = items.filter(i => i.coordinates && i.coordinates.lat && i.coordinates.lng);
     const routes = items.filter(i =>
@@ -192,6 +192,28 @@ export const Map = () => {
                     <MapContent items={displayedItems} t={t} />
                 </MapContainer>
             </div>
+        </div>
+    );
+};
+
+export const MiniMap = ({ items, t, height = "300px" }) => {
+    const defaultPosition = [51.505, -0.09];
+
+    return (
+        <div className="bg-slate-100 rounded-xl overflow-hidden shadow-sm border border-slate-200 z-0 relative" style={{ height }}>
+            <MapContainer
+                center={defaultPosition}
+                zoom={2}
+                scrollWheelZoom={true}
+                style={{ height: "100%", width: "100%" }}
+                preferCanvas={true}
+            >
+                <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <MapContent items={items} t={t} />
+            </MapContainer>
         </div>
     );
 };

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Calendar, Plus } from 'lucide-react';
+import { generateId } from '../utils/idGenerator';
 import { SectionTitle } from './common/SectionTitle';
 import { Button } from './common/Button';
 import { ConfirmModal } from './common/ConfirmModal';
@@ -76,7 +77,7 @@ export const Itinerary = () => {
         }
 
         setModalInitialData({
-            id: null,
+            id: generateId('event'), // Pre-generate ID to allow background updates
             title: '', type: 'Activity',
             startDateTime: defaultStart, duration: 60,
             timeZone: tripDetails.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -127,7 +128,7 @@ export const Itinerary = () => {
         const [startDate, startTime] = formData.startDateTime ? formData.startDateTime.split('T') : ['', ''];
 
         const newItem = {
-            id: editMode ? formData.id : Date.now(),
+            id: formData.id, // ID is now always present (pre-generated or existing)
             title: formData.title,
             type: formData.type,
             category: getBudgetCategory(formData.type, null),
@@ -210,23 +211,20 @@ export const Itinerary = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Timeline Side */}
-                <div className="lg:col-span-3">
-                    <TimelineView
-                        itinerary={itinerary}
-                        groupedItinerary={groupedItinerary}
-                        sortedDates={sortedDates}
-                        onEdit={handleEditOpen}
-                        onDelete={handleDelete}
-                        onUpdate={updateItineraryItem}
-                        onPreviewFile={setPreviewFile}
-                        onAddEvent={handleAddOpen}
-                        documents={documents}
-                        activeCurrencies={activeCurrencies}
-                        t={t}
-                    />
-                </div>
+            <div className="w-full">
+                <TimelineView
+                    itinerary={itinerary}
+                    groupedItinerary={groupedItinerary}
+                    sortedDates={sortedDates}
+                    onEdit={handleEditOpen}
+                    onDelete={handleDelete}
+                    onUpdate={updateItineraryItem}
+                    onPreviewFile={setPreviewFile}
+                    onAddEvent={handleAddOpen}
+                    documents={documents}
+                    activeCurrencies={activeCurrencies}
+                    t={t}
+                />
             </div>
 
             {/* Add/Edit Event Modal */}
