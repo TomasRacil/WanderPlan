@@ -239,7 +239,21 @@ export const LOCALES = {
         confirmDeleteDocMsg: "Are you sure you want to delete this document? It will be removed from ALL events and tasks that reference it.",
         unnamedItem: "Unnamed Item",
         noDataReceived: "No data received.",
-        newContent: "New Content"
+        newContent: "New Content",
+        // Bag Manager
+        manageBags: "Manage Bags",
+        bagName: "Bag Name",
+        bagType: "Bag Type",
+        carryOn: "Carry-On",
+        checkedBag: "Checked Bag",
+        personalItem: "Personal Item",
+        weightLimit: "Weight Limit",
+        bagQuantity: "Quantity",
+        unit: "Unit",
+        addBag: "Add Bag",
+        updateBag: "Update Bag",
+        noBags: "No bags defined yet.",
+        baggageAllowance: "Baggage Allowance"
     },
     cs: {
         planMyTrip: "Naplánovat cestu",
@@ -481,6 +495,20 @@ export const LOCALES = {
         confirmDeleteDocMsg: "Opravdu chcete tento dokument smazat? Bude odstraněn ze VŠECH událostí a úkolů, které na něj odkazují.",
         unnamedItem: "Nepojmenovaná položka",
         noDataReceived: "Nebyla přijata žádná data.",
-        newContent: "Nový obsah"
+        newContent: "Nový obsah",
+        // Bag Manager
+        manageBags: "Spravovat zavazadla",
+        bagName: "Název zavazadla",
+        bagType: "Typ zavazadla",
+        carryOn: "Příruční zavazadlo",
+        checkedBag: "Odbavené zavazadlo",
+        personalItem: "Osobní taška",
+        weightLimit: "Váhový limit",
+        bagQuantity: "Množství",
+        unit: "Jednotka",
+        addBag: "Přidat zavazadlo",
+        updateBag: "Upravit zavazadlo",
+        noBags: "Zatím žádná definovaná zavazadla.",
+        baggageAllowance: "Povolená zavazadla"
     }
 };

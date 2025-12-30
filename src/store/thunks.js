@@ -39,7 +39,8 @@ export const generateTrip = createAsyncThunk(
                 aiMode,
                 selectedModel,
                 resources.documents,
-                promptAttachments
+                promptAttachments,
+                packing.bags
             );
 
             dispatch(finalizeTripData({ data, tripDetails, itinerary: itinerary.items }));

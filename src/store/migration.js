@@ -26,10 +26,22 @@ const ensurePackingIds = (list) => {
     return list.map(cat => ({
         ...cat,
         id: cat.id || generateId('pcat'),
-        items: (cat.items || []).map(item => ({
-            ...item,
-            id: item.id || generateId('pack')
-        }))
+        items: (cat.items || []).map(item => {
+            let newItem = { ...item };
+
+            // Fix legacy object-in-text structure
+            if (newItem.text && typeof newItem.text === 'object') {
+                const legacy = newItem.text;
+                newItem.text = legacy.item || legacy.text || "Unknown Item";
+                newItem.quantity = newItem.quantity || legacy.quantity || 1;
+                newItem.recommendedBagType = newItem.recommendedBagType || legacy.recommendedBagType || null;
+            }
+
+            return {
+                ...newItem,
+                id: newItem.id || generateId('pack')
+            };
+        })
     }));
 };
 
@@ -102,6 +114,9 @@ export const migrateLegacyState = (legacyState) => {
         cat.items.forEach(gatherDocs);
     });
 
+    // Bags
+    const bags = ensureIds(legacyState.bags || [], 'bag');
+
     // 3. Trip Core
     const trip = {
         tripDetails: legacyState.tripDetails || {},
@@ -126,7 +141,8 @@ export const migrateLegacyState = (legacyState) => {
             items: itineraryItems
         },
         packing: {
-            list: packing
+            list: packing,
+            bags
         }
     };
 };

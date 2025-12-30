@@ -76,7 +76,15 @@ export const ReviewModal = () => {
                                         )}
                                         {targetArea === 'packing' && (item.items && Array.isArray(item.items)) && (
                                             <div className="mt-1 flex flex-wrap gap-1">
-                                                {item.items.map((i, k) => <span key={k} className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px]">{i}</span>)}
+                                                {item.items.map((i, k) => {
+                                                    const text = typeof i === 'string' ? i : (i.item || i.text);
+                                                    const qty = typeof i === 'object' && i.quantity > 1 ? ` x${i.quantity}` : '';
+                                                    return (
+                                                        <span key={k} className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px]">
+                                                            {text}{qty}
+                                                        </span>
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>

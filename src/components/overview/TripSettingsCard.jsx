@@ -1,13 +1,17 @@
-import React from 'react';
-import { Globe } from 'lucide-react';
-import { useDispatch } from 'react-redux';
+import { useState } from 'react';
+import { Globe, Luggage } from 'lucide-react';
+import { useDispatch, useSelector } from 'react-redux';
 import { Card } from '../common/Card';
 import { SearchableSelect } from '../common/SearchableSelect';
+import { Button } from '../common/Button';
 import { updateTripDetails } from '../../store/tripSlice';
+import { BagManagerModal } from '../packing/BagManagerModal'; // Import new modal
 import { ALL_CURRENCIES } from '../../data/currencies';
 
 export const TripSettingsCard = ({ tripDetails, t }) => {
     const dispatch = useDispatch();
+    const [isBagModalOpen, setIsBagModalOpen] = useState(false);
+    const bags = useSelector(state => state.packing.bags || []);
 
     return (
         <Card className="p-6 border-slate-200 bg-white/50 backdrop-blur-sm !overflow-visible shadow-indigo-100/50">
@@ -81,6 +85,26 @@ export const TripSettingsCard = ({ tripDetails, t }) => {
                     </div>
                 </div>
             </div>
+
+            {/* Baggage Section */}
+            <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-slate-600">
+                    <Luggage size={18} className="text-indigo-500" />
+                    <span className="text-sm font-bold">{t.baggage || "Baggage Allowance"}</span>
+                    <span className="text-xs text-slate-400 font-medium ml-1">
+                        ({bags.reduce((acc, b) => acc + (b.quantity || 1), 0)} bags defined)
+                    </span>
+                </div>
+                <Button variant="secondary" onClick={() => setIsBagModalOpen(true)} className="text-xs h-8">
+                    {t.manageBags || "Manage Bags"}
+                </Button>
+            </div>
+
+            <BagManagerModal
+                isOpen={isBagModalOpen}
+                onClose={() => setIsBagModalOpen(false)}
+                t={t}
+            />
         </Card>
     );
 };

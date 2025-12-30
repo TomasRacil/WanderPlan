@@ -32,7 +32,7 @@ function WanderPlanContent() {
   const dispatch = useDispatch();
   const { tripDetails, expenses, apiKey, exchangeRates, selectedModel } = useSelector(state => state.trip);
   const { items: itinerary } = useSelector(state => state.itinerary);
-  const { list: packingList } = useSelector(state => state.packing);
+  const { list: packingList, bags } = useSelector(state => state.packing);
   const { tasks: preTripTasks, documents, distilledContext, phrasebook } = useSelector(state => state.resources);
   const { activeTab, showSettings, loading, language, quotaError, aiError, isInitialized } = useSelector(state => state.ui);
   const t = LOCALES[language];
@@ -60,9 +60,9 @@ function WanderPlanContent() {
   // Auto-save to IndexedDB on change
   React.useEffect(() => {
     if (!isInitialized) return;
-    const tripData = { tripDetails, preTripTasks, itinerary, expenses, packingList, phrasebook, exchangeRates, language, selectedModel, distilledContext, documents };
+    const tripData = { tripDetails, preTripTasks, itinerary, expenses, packingList, bags, phrasebook, exchangeRates, language, selectedModel, distilledContext, documents };
     set('wanderplan_current_trip', tripData).catch(err => console.error('Auto-save failed', err));
-  }, [tripDetails, preTripTasks, itinerary, expenses, packingList, phrasebook, exchangeRates, language, isInitialized, selectedModel, distilledContext, documents]);
+  }, [tripDetails, preTripTasks, itinerary, expenses, packingList, bags, phrasebook, exchangeRates, language, isInitialized, selectedModel, distilledContext, documents]);
 
   React.useEffect(() => {
     dispatch(initializeTrip());

@@ -10,7 +10,18 @@ export const getPackingSchema = (aiMode) => {
                 type: "OBJECT",
                 properties: {
                     category: { type: "STRING" },
-                    items: { type: "ARRAY", items: { type: "STRING" } },
+                    items: {
+                        type: "ARRAY",
+                        items: {
+                            type: "OBJECT",
+                            properties: {
+                                item: { type: "STRING" },
+                                quantity: { type: "INTEGER" },
+                                recommendedBagType: { type: "STRING", description: "e.g., 'Carry-on', 'Checked', 'Personal Item'" }
+                            },
+                            required: ["item"]
+                        }
+                    },
                     attachmentIds: commonProperties.attachmentIds
                 },
                 required: ["category", "items"]

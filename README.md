@@ -38,11 +38,15 @@
 *   **Smart Checklists**:
     *   **Pre-Trip Tasks**: Manage visas, vaccinations, and documents.
     *   **Packing List**: Categorized packing essentials.
-        *   **[NEW] List Management**: Auto-sort completed items to bottom, "Clear List" functionality, and AI deduplication.
-    *   Support for attachments (links/notes) on tasks.
+    *   **[NEW] Smart Baggage Management 🧳**:
+        *   Define custom baggage (Checked Bags, Carry-ons, Personal Items) with weight limits and quantities.
+        *   **AI-Smart Sorting**: AI automatically assigns items to appropriate bags (e.g., liquids in checked luggage, electronics in carry-ons).
+        *   **Dynamic Badging**: Items display their assigned bag or AI-suggested bag type (e.g., "Checked (?)").
+    *   **[NEW] List Management**: Auto-sort completed items to bottom, "Clear List" functionality, and AI deduplication.
 *   **Data Persistence**:
     *   **Save/Load**: Export your entire trip plan to a JSON file or **[NEW] ZIP Archive** (including attachments) and load it back anytime.
     *   **IndexedDB**: Migrated storage layer to handle large file attachments (images/PDFs) without size limits.
+    *   **[NEW] Automatic Data Repair 🔧**: A robust internal migration engine that self-heals data structure inconsistencies from older application versions during initialization.
 
 *   **Centralized Document Library �**:
     *   **[NEW] Project-wide Storage**: All uploaded documents are now stored in a central repository, allowing files to be reused across multiple itinerary events or pre-trip tasks without duplication.

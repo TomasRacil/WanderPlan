@@ -86,4 +86,31 @@ describe('migrateLegacyState', () => {
         expect(result.itinerary.items).toHaveLength(1);
         expect(result.resources.documents['doc1']).toBeDefined();
     });
+    it('should normalize legacy packing items (nested objects in text)', () => {
+        const legacyState = {
+            packingList: [
+                {
+                    id: 'cat1',
+                    category: 'Test Cat',
+                    items: [
+                        {
+                            id: 'item1',
+                            text: {
+                                item: 'Legacy Item',
+                                quantity: 5,
+                                recommendedBagType: 'Checked'
+                            },
+                        }
+                    ]
+                }
+            ]
+        };
+
+        const result = migrateLegacyState(legacyState);
+        const item = result.packing.list[0].items[0];
+
+        expect(item.text).toBe('Legacy Item');
+        expect(item.quantity).toBe(5);
+        expect(item.recommendedBagType).toBe('Checked');
+    });
 });

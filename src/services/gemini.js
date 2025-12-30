@@ -59,7 +59,7 @@ const ResponseSchema = z.object({
     phrasebook: z.any().optional()
 });
 
-export const generateTripContent = async (apiKey, tripDetails, customPrompt, itinerary, preTripTasks, packingList, language = 'en', targetArea = 'all', aiMode = 'add', selectedModel = 'gemini-3-flash-preview', allDocuments = {}, promptAttachments = []) => {
+export const generateTripContent = async (apiKey, tripDetails, customPrompt, itinerary, preTripTasks, packingList, language = 'en', targetArea = 'all', aiMode = 'add', selectedModel = 'gemini-3-flash-preview', allDocuments = {}, promptAttachments = [], bags = []) => {
     const allDocIds = new Set(Object.keys(allDocuments));
     (promptAttachments || []).forEach(id => allDocIds.add(String(id)));
 
@@ -71,6 +71,7 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
         itinerary: itinerary || [],
         tasks: preTripTasks || [],
         packing: packingList || [],
+        bags: bags || [],
         distilledAttachments: summarizedDocs.map(item => ({ id: item.id, summary: item.doc.summary })),
         preferredLanguage: language
     });
@@ -96,7 +97,7 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
         }
     });
 
-    const finalSystemInstruction = getSystemInstructions(new Date().toISOString().split('T')[0], tripDetails, rawDataNeededIds.length > 0, language);
+    const finalSystemInstruction = getSystemInstructions(new Date().toISOString().split('T')[0], tripDetails, rawDataNeededIds.length > 0, language, targetArea);
     const prompt = constructUserPrompt(context, customPrompt, aiMode, targetArea);
 
     // --- Schema Construction ---

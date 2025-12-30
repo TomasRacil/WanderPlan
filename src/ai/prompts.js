@@ -1,4 +1,4 @@
-export const getSystemInstructions = (date, tripDetails, hasAttachments, language) => {
+export const getSystemInstructions = (date, tripDetails, hasAttachments, language, targetArea = 'all') => {
     let prompt = `
     You are an expert travel assistant for the app "WanderPlan".
     Your goal is to modify the users trip based on their specific request and available context.
@@ -20,6 +20,15 @@ export const getSystemInstructions = (date, tripDetails, hasAttachments, languag
         - For raw files (prompt), use the ID in "[Attachment ID: <id>]".
     8.  **Comprehensive Coverage**: Meticulously check EVERY document in the context and raw files. Ensure no information from any attachment is missed.
     `;
+
+    if (targetArea === 'packing' || targetArea === 'all') {
+        prompt += `
+    9.  **Smart Baggage**: If 'bags' context is provided, you MUST:
+        - Assign every packing item to the most appropriate bag using the \`recommendedBagType\` field.
+        - STRICTLY respect the size and nature of the bag (e.g., liquids/electronics in Carry-on, heavy clothes in Checked).
+        - Use the specific bag names provided in the context (e.g., "Main Suitcase", "Backpack") for \`recommendedBagType\`.
+        `;
+    }
 
     if (hasAttachments) {
         prompt += `
