@@ -97,9 +97,9 @@ export const TripSettingsCard = ({ tripDetails, t }) => {
             <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-2 text-slate-600">
                     <Luggage size={18} className="text-indigo-500" />
-                    <span className="text-sm font-bold">{t.baggage || "Baggage Allowance"}</span>
+                    <span className="text-sm font-bold">{t.baggageAllowance || "Baggage Allowance"}</span>
                     <span className="text-xs text-slate-400 font-medium ml-1">
-                        ({bags.reduce((acc, b) => acc + (b.quantity || 1), 0)} bags defined)
+                        ({bags.reduce((acc, b) => acc + (b.quantity || 1), 0)} {t.bagsDefined || "bags defined"})
                     </span>
                 </div>
                 <Button variant="secondary" onClick={() => setIsBagModalOpen(true)} className="text-xs h-8">

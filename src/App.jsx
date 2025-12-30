@@ -208,7 +208,9 @@ function WanderPlanContent() {
       </header>
 
       {viewMode === 'dashboard' ? (
-        <Dashboard onTripSelect={handleTripSelect} />
+        <div className="flex-1 overflow-auto">
+          <Dashboard onTripSelect={handleTripSelect} />
+        </div>
       ) : (
         <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6 overflow-auto flex flex-col pb-24 md:pb-6">
           {activeTab === 'overview' && (
@@ -239,19 +241,21 @@ function WanderPlanContent() {
       />
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-2 z-50 flex justify-between items-center safe-area-pb">
-        {navItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => dispatch(setActiveTab(item.id))}
-            className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${activeTab === item.id ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
-              }`}
-          >
-            <item.icon size={20} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-            <span className="text-[10px] font-medium">{item.label}</span>
-          </button>
-        ))}
-      </nav>
+      {viewMode === 'trip' && (
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-2 z-50 flex justify-between items-center safe-area-pb">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => dispatch(setActiveTab(item.id))}
+              className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${activeTab === item.id ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
+                }`}
+            >
+              <item.icon size={20} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+              <span className="text-[10px] font-medium">{item.label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
 
       {loading && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm">

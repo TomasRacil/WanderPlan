@@ -143,7 +143,7 @@ export function Dashboard({ onTripSelect }) {
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-12 relative">
             {confirmModal && (
-                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-2xl animate-scaleIn">
                         <h3 className="text-xl font-bold text-slate-900 mb-2">{confirmModal.title}</h3>
                         <p className="text-slate-600 mb-6 text-sm">{confirmModal.msg}</p>
@@ -161,12 +161,12 @@ export function Dashboard({ onTripSelect }) {
             )}
 
             <div className="max-w-6xl mx-auto">
-                <div className="flex items-center justify-between mb-8">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4 sm:gap-0">
                     <div>
                         <h1 className="text-3xl font-bold text-slate-900">{t.yourTrips}</h1>
-                        <p className="text-slate-500 mt-1">{t.dashboardSubtitle}</p>
+                        <p className="text-slate-500 mt-1 hidden sm:block">{t.dashboardSubtitle}</p>
                     </div>
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 w-full sm:w-auto">
                         <input
                             type="file"
                             accept=".json,.zip"
@@ -174,8 +174,8 @@ export function Dashboard({ onTripSelect }) {
                             className="hidden"
                             ref={fileInputRef}
                         />
-                        <Button variant="secondary" icon={Upload} onClick={handleImportClick}>{t.importTrip}</Button>
-                        <Button onClick={handleCreateNew} icon={Plus}>{t.create || "Create"}</Button>
+                        <Button variant="secondary" icon={Upload} onClick={handleImportClick} className="flex-1 sm:flex-none justify-center">{t.importTrip}</Button>
+                        <Button onClick={handleCreateNew} icon={Plus} className="flex-1 sm:flex-none justify-center">{t.create || "Create"}</Button>
                     </div>
                 </div>
 
@@ -203,7 +203,7 @@ export function Dashboard({ onTripSelect }) {
                                     </h3>
 
                                     {/* Card Actions */}
-                                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="absolute top-2 right-2 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                         <button
                                             onClick={(e) => handleExport(e, trip.id)}
                                             className="p-2 bg-white/90 text-slate-600 hover:text-indigo-600 rounded-full shadow-sm backdrop-blur-sm"
