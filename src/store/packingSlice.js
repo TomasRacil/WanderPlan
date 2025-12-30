@@ -68,9 +68,9 @@ export const packingSlice = createSlice({
             });
         },
         applyPackingChanges: (state, action) => {
-            const { ads = [], updates = [], deletes = [] } = action.payload;
+            const { adds = [], updates = [], deletes = [] } = action.payload;
 
-            ads.forEach(newCat => {
+            adds.forEach(newCat => {
                 const existingCat = state.list.find(c => c.category === newCat.category);
                 if (existingCat) {
                     newCat.items.forEach(newItem => {

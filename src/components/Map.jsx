@@ -3,7 +3,8 @@ import { useSelector } from 'react-redux';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { SectionTitle, Button } from './CommonUI';
+import { SectionTitle } from './common/SectionTitle';
+import { Button } from './common/Button';
 import { Map as MapIcon, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { LOCALES } from '../i18n/locales';
 

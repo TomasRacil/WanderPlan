@@ -9,18 +9,18 @@ export const getTasksSchema = (aiMode) => {
             items: {
                 type: "OBJECT",
                 properties: {
-                    text: { type: "STRING" },
-                    cost: commonProperties.cost,
-                    currency: commonProperties.currency,
-                    category: { type: "STRING" },
-                    dueDate: { type: "STRING" },
+                    text: { type: "STRING", description: "What needs to be done (e.g., 'Book flight', 'Get visa')" },
+                    cost: { ...commonProperties.cost, description: "Estimated cost if any" },
+                    currency: { ...commonProperties.currency, description: "Currency for the cost" },
+                    category: { type: "STRING", description: "e.g., Preparation, Booking, Logistics" },
+                    dueDate: { type: "STRING", description: "Due date in YYYY-MM-DD format. Recommended for time-sensitive preparation." },
                     notes: commonProperties.notes,
-                    timeToComplete: { type: "STRING" },
-                    attachmentIds: commonProperties.attachmentIds
+                    timeToComplete: { type: "STRING", description: "Estimated time to perform the task (e.g., '30 mins', '2 hours')" },
+                    attachmentIds: { ...commonProperties.attachmentIds, description: "MANDATORY: Document IDs containing task info." }
                 },
-                required: ["text"]
-            }
-        };
+            },
+            required: ["text"]
+        }
     }
 
     if (aiMode === 'update' || aiMode === 'fill') {
@@ -33,11 +33,15 @@ export const getTasksSchema = (aiMode) => {
                     fields: {
                         type: "OBJECT",
                         properties: {
-                            text: { type: "STRING" },
-                            cost: commonProperties.cost,
+                            text: { type: "STRING", description: "What needs to be done" },
+                            cost: { ...commonProperties.cost, description: "Estimated cost" },
+                            currency: { ...commonProperties.currency, description: "Currency" },
+                            category: { type: "STRING", description: "Category of pre-trip task" },
+                            dueDate: { type: "STRING", description: "Due date in YYYY-MM-DD format." },
                             done: { type: "BOOLEAN" },
                             notes: commonProperties.notes,
-                            attachmentIds: commonProperties.attachmentIds
+                            timeToComplete: { type: "STRING" },
+                            attachmentIds: { ...commonProperties.attachmentIds, description: "MANDATORY: Document IDs that justify these changes." }
                         }
                     }
                 },

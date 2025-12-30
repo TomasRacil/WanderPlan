@@ -5,10 +5,10 @@ import {
     initializeTrip,
     fetchExchangeRates,
     fetchPairRate,
-    implementProposedChanges,
     loadFullTrip,
     deleteGlobalAttachment
 } from './thunks';
+// import { implementProposedChanges } from './thunks'; // Removed to avoid circular dependency
 
 // Actions re-export for compatibility
 export {
@@ -17,7 +17,6 @@ export {
     initializeTrip,
     fetchExchangeRates,
     fetchPairRate,
-    implementProposedChanges,
     loadFullTrip,
     deleteGlobalAttachment
 };
@@ -102,6 +101,7 @@ export const tripSlice = createSlice({
                     state.expenses = trip.expenses || [];
                     state.exchangeRates = trip.exchangeRates || {};
                     state.apiKey = trip.apiKey || state.apiKey;
+                    state.selectedModel = trip.selectedModel || state.selectedModel;
                 }
             })
             .addCase(generateTrip.fulfilled, (state, action) => {
@@ -124,7 +124,7 @@ export const tripSlice = createSlice({
                     }
                 }
             })
-            .addCase(implementProposedChanges.fulfilled, (state) => {
+            .addCase('trip/implement/fulfilled', (state) => {
                 state.proposedChanges = null;
             })
             .addCase(fetchExchangeRates.fulfilled, (state, action) => {

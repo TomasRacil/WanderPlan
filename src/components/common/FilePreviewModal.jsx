@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal } from './CommonUI';
+import { Modal } from './Modal';
 
 export const FilePreviewModal = ({ file, onClose }) => {
     const [blobUrl, setBlobUrl] = React.useState(null);

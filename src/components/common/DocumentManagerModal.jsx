@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { Modal, Button, ConfirmModal } from './CommonUI';
+import { Modal } from './Modal';
+import { Button } from './Button';
+import { ConfirmModal } from './ConfirmModal';
 import { Trash2, FileText, Image as ImageIcon, Eye, AlertCircle, Sparkles, Download, Edit2, Check, X } from 'lucide-react';
-import { deleteGlobalAttachment } from '../store/tripSlice';
-import { updateDocument } from '../store/resourceSlice';
-import { removeUnusedDocuments } from '../store/thunks';
-import { LOCALES } from '../i18n/locales';
+import { deleteGlobalAttachment } from '../../store/tripSlice';
+import { updateDocument } from '../../store/resourceSlice';
+import { removeUnusedDocuments } from '../../store/thunks';
+import { LOCALES } from '../../i18n/locales';
 import { FilePreviewModal } from './FilePreviewModal';
 
 export const DocumentManagerModal = ({ isOpen, onClose }) => {
@@ -155,7 +157,7 @@ export const DocumentManagerModal = ({ isOpen, onClose }) => {
                                                         </button>
                                                     </div>
                                                 )}
-                                                <p className="text-[10px] text-slate-400 uppercase">{doc.type.split('/')[1] || 'FILE'} • {Math.round((doc.data?.length || 0) / 1024)}KB</p>
+                                                <p className="text-[10px] text-slate-400 uppercase">{doc.type.split('/')[1] || 'FILE'} • {doc.size ? `${Math.round(doc.size / 1024)}KB` : `${Math.round((doc.data?.length || 0) / 1024)}KB`}</p>
                                             </div>
                                         </div>
                                         <div className="flex gap-1">

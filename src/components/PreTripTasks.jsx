@@ -1,23 +1,28 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Plus, CheckSquare, Trash2, CheckCircle, Sparkles, Paperclip, Link as LinkIcon, Download, Edit2, FileText } from 'lucide-react';
+import { Plus, CheckSquare, Trash2 } from 'lucide-react';
 import { BUDGET_CATEGORIES } from '../data/budgetConstants';
-import { SearchableSelect } from './SearchableSelect';
 import { ALL_CURRENCIES } from '../data/currencies';
-import { SectionTitle, Modal, Button, ConfirmModal } from './CommonUI';
+import { SectionTitle } from './common/SectionTitle';
+import { Button } from './common/Button';
+import { ConfirmModal } from './common/ConfirmModal';
 import { updateTripDetails, generateTrip } from '../store/tripSlice';
 import { setTasks as setPreTripTasks } from '../store/resourceSlice';
-import { AttachmentManager } from './AttachmentManager';
-import { FilePreviewModal } from './FilePreviewModal';
-import { AiPromptTool } from './AiPromptTool';
+import { FilePreviewModal } from './common/FilePreviewModal';
+import { AiPromptTool } from './common/AiPromptTool';
 import { LOCALES } from '../i18n/locales';
 import { getBudgetCategory } from '../utils/helpers';
+
+// Sub-components
+import { TaskItem } from './tasks/TaskItem';
+import { TaskFormModal } from './tasks/TaskFormModal';
 
 export const PreTripTasks = () => {
     const dispatch = useDispatch();
     const { tripDetails, exchangeRates = {} } = useSelector(state => state.trip);
     const { tasks: preTripTasks, documents = {} } = useSelector(state => state.resources);
     const { language, loading } = useSelector(state => state.ui);
+    const t = LOCALES[language || 'en'];
 
     // Filtered list of currencies allowed (Home + Added)
     const activeCurrencies = ALL_CURRENCIES.filter(c =>
@@ -25,90 +30,70 @@ export const PreTripTasks = () => {
         Object.keys(exchangeRates).includes(c.code)
     );
 
-    const t = LOCALES[language || 'en'];
-
-    // Derived document library is now handled internally by AttachmentManager using Redux state
-
-    const [modal, setModal] = useState({ isOpen: false, type: 'add', taskId: null });
-    const [taskForm, setTaskForm] = useState({
-        text: '',
-        deadline: '',
-        cost: '',
-        currency: tripDetails.lastUsedCurrency || tripDetails.homeCurrency || 'USD',
-        category: 'Documents',
-        isPaid: false,
-        timeToComplete: '',
-        notes: '',
-        attachmentIds: [],
-        links: []
-    });
-    const [localPrompt, setLocalPrompt] = useState('');
+    const [modalOpen, setModalOpen] = useState(false);
+    const [editingTask, setEditingTask] = useState(null);
     const [aiMode, setAiMode] = useState('add');
     const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, id: null });
     const [previewFile, setPreviewFile] = useState(null);
+    const [promptResetTrigger, setPromptResetTrigger] = useState(0);
 
-    const openModal = (type, task = null) => {
-        if (type === 'edit' && task) {
-            setTaskForm({
-                text: task.text,
-                deadline: task.deadline || '',
-                cost: task.cost || '',
-                currency: task.currency || tripDetails.homeCurrency,
-                category: task.category || 'Documents',
-                isPaid: task.isPaid || false,
-                timeToComplete: task.timeToComplete || '',
-                notes: task.notes || '',
-                attachmentIds: task.attachmentIds || [],
-                links: task.links || []
-            });
-            setModal({ isOpen: true, type: 'edit', taskId: task.id });
-        } else {
-            setTaskForm({
-                text: '',
-                deadline: '',
-                cost: '',
-                currency: tripDetails.lastUsedCurrency || tripDetails.homeCurrency || 'USD',
-                category: 'Documents',
-                isPaid: false,
-                timeToComplete: '',
-                notes: '',
-                attachmentIds: [],
-                links: []
-            });
-            setModal({ isOpen: true, type: 'add', taskId: null });
-        }
+    const openAddModal = () => {
+        setEditingTask(null);
+        setModalOpen(true);
     };
 
-    const handleModalSubmit = (e) => {
-        e.preventDefault();
-        if (!taskForm.text.trim()) return;
+    const openEditModal = (task) => {
+        setEditingTask(task);
+        setModalOpen(true);
+    };
 
-        const costValue = parseFloat(taskForm.cost) || 0;
+    const handleModalSubmit = (formData) => {
+        const costValue = parseFloat(formData.cost) || 0;
 
-        if (modal.type === 'add') {
+        // Ensure currency update
+        if (formData.currency && formData.currency !== tripDetails.lastUsedCurrency) {
+            dispatch(updateTripDetails({ lastUsedCurrency: formData.currency }));
+        }
+
+        if (!editingTask) {
+            // Add
             const newTask = {
                 id: Date.now(),
-                text: taskForm.text,
-                deadline: taskForm.deadline,
+                text: formData.text,
+                deadline: formData.deadline,
                 done: false,
-                attachmentIds: taskForm.attachmentIds,
-                links: taskForm.links,
+                attachmentIds: formData.attachmentIds,
+                links: formData.links,
                 cost: costValue,
-                currency: taskForm.currency,
-                category: getBudgetCategory(null, taskForm.category),
-                isPaid: taskForm.isPaid,
-                timeToComplete: taskForm.timeToComplete,
-                notes: taskForm.notes
+                currency: formData.currency,
+                category: getBudgetCategory(null, formData.category),
+                isPaid: formData.isPaid,
+                timeToComplete: formData.timeToComplete,
+                notes: formData.notes
             };
             dispatch(setPreTripTasks([...preTripTasks, newTask]));
         } else {
+            // Edit
             dispatch(setPreTripTasks(preTripTasks.map(t =>
-                t.id === modal.taskId
-                    ? { ...t, text: taskForm.text, deadline: taskForm.deadline, cost: costValue, currency: taskForm.currency, category: getBudgetCategory(null, taskForm.category), isPaid: taskForm.isPaid, timeToComplete: taskForm.timeToComplete, notes: taskForm.notes, attachmentIds: taskForm.attachmentIds, links: taskForm.links }
+                t.id === editingTask.id
+                    ? {
+                        ...t,
+                        text: formData.text,
+                        deadline: formData.deadline,
+                        cost: costValue,
+                        currency: formData.currency,
+                        category: getBudgetCategory(null, formData.category),
+                        isPaid: formData.isPaid,
+                        timeToComplete: formData.timeToComplete,
+                        notes: formData.notes,
+                        attachmentIds: formData.attachmentIds,
+                        links: formData.links
+                    }
                     : t
             )));
         }
-        setModal({ isOpen: false, type: 'add', taskId: null });
+        setModalOpen(false);
+        setEditingTask(null);
     };
 
     const toggleTask = (taskId) => {
@@ -117,6 +102,12 @@ export const PreTripTasks = () => {
 
     const deleteTask = (id) => {
         setConfirmDelete({ isOpen: true, id });
+    };
+
+    const togglePaid = (task) => {
+        dispatch(setPreTripTasks(preTripTasks.map(t =>
+            t.id === task.id ? { ...t, isPaid: !t.isPaid } : t
+        )));
     };
 
     const confirmDeleteTask = () => {
@@ -138,21 +129,25 @@ export const PreTripTasks = () => {
                 />
             </div>
 
-            {/* AI Generation Tool Section - Full Width */}
+            {/* AI Generation Tool Section */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-8 shadow-sm">
                 <div className="flex flex-col lg:flex-row gap-4 items-start">
                     <div className="flex-1 w-full">
                         <AiPromptTool
-                            onGenerate={(prompt, mode, attachments) => dispatch(generateTrip({ targetArea: 'tasks', customPrompt: prompt, aiMode: mode, promptAttachments: attachments }))}
+                            onGenerate={(prompt, mode, attachments) =>
+                                dispatch(generateTrip({ targetArea: 'tasks', customPrompt: prompt, aiMode: mode, promptAttachments: attachments }))
+                                    .unwrap().then(() => setPromptResetTrigger(p => p + 1))
+                            }
                             loading={loading}
                             aiMode={aiMode}
                             setAiMode={setAiMode}
                             t={t}
                             placeholder={t.customPrompt}
+                            resetTrigger={promptResetTrigger}
                         />
                     </div>
                     <div className="flex gap-2 w-full lg:w-auto">
-                        <Button onClick={() => openModal('add')} icon={Plus} className="flex-1 h-10 text-xs px-6" variant="secondary">{t.addItem}</Button>
+                        <Button onClick={openAddModal} icon={Plus} className="flex-1 h-10 text-xs px-6" variant="secondary">{t.addItem}</Button>
                         {preTripTasks.length > 0 && (
                             <Button
                                 onClick={() => setConfirmDelete({ isOpen: true, id: 'ALL' })}
@@ -173,243 +168,29 @@ export const PreTripTasks = () => {
                     </div>
                 )}
                 {[...preTripTasks].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1)).map(task => (
-                    <div key={task.id} className={`group bg-white rounded-xl p-4 border transition-all duration-200 ${task.done ? 'border-slate-100 opacity-75' : 'border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-100'}`}>
-                        <div className="flex items-start gap-4">
-                            <div className="flex items-center h-6">
-                                <input
-                                    type="checkbox"
-                                    checked={task.done}
-                                    onChange={() => toggleTask(task.id)}
-                                    className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer transition-colors"
-                                />
-                            </div>
-
-                            <div className="flex-1 min-w-0">
-                                <div className="flex justify-between items-start gap-2">
-                                    <h4 className={`text-base font-semibold leading-tight ${task.done ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
-                                        {task.text}
-                                    </h4>
-                                    <div className="flex items-center gap-1 shrink-0">
-                                        <button
-                                            onClick={() => openModal('edit', task)}
-                                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                            title={t.editEvent}
-                                        >
-                                            <Edit2 size={16} />
-                                        </button>
-                                        <button
-                                            onClick={() => deleteTask(task.id)}
-                                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                            title={t.confirmDelete}
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="mt-3 flex flex-wrap items-center gap-2">
-                                    <div className="flex justify-between items-start">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${task.done ? 'bg-slate-100 text-slate-500' : 'bg-indigo-100 text-indigo-700'} `}>
-                                                    {task.category || 'General'}
-                                                </span>
-                                                {task.cost > 0 && (
-                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${task.isPaid ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-600'} `}>
-                                                        {task.currency} {task.cost.toLocaleString()} {task.isPaid ? t.paidSuffix : t.estSuffix}
-                                                    </span>
-                                                )}
-                                                {task.deadline && (
-                                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${new Date(task.deadline) < new Date() && !task.done
-                                                        ? 'bg-red-50 text-red-600 border-red-100'
-                                                        : 'bg-indigo-50 text-indigo-600 border-indigo-100'
-                                                        } `}>
-                                                        <FileText size={10} />
-                                                        {new Date(task.deadline).toLocaleDateString()}
-                                                    </span>
-                                                )}
-                                                {task.timeToComplete && (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-600 border border-amber-100">
-                                                        ⏱ {task.timeToComplete}
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            {task.notes && (
-                                                <p className="mt-3 text-sm text-slate-600 bg-slate-50 p-3 rounded-lg italic border-l-2 border-slate-200 whitespace-pre-wrap">
-                                                    {task.notes}
-                                                </p>
-                                            )}
-
-                                            {/* Attachments & Links Preview */}
-                                            {(task.attachmentIds?.length > 0 || task.links?.length > 0) && (
-                                                <div className="flex flex-wrap gap-2 mt-2 mb-2">
-                                                    {task.attachmentIds?.map(id => {
-                                                        const doc = documents[id];
-                                                        if (!doc) return null;
-                                                        return (
-                                                            <button key={id} onClick={() => setPreviewFile(doc)} className="inline-flex items-center gap-1 text-xs bg-slate-100 px-2 py-1 rounded text-slate-600 hover:text-indigo-600 border border-slate-200 transition-colors" title="Preview File">
-                                                                <Paperclip size={10} /> {doc.name}
-                                                            </button>
-                                                        );
-                                                    })}
-                                                    {task.links?.map(l => (
-                                                        <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs bg-indigo-50 px-2 py-1 rounded text-indigo-600 hover:underline border border-indigo-100">
-                                                            <LinkIcon size={10} /> {l.label}
-                                                        </a>
-                                                    ))}
-                                                </div>
-                                            )}
-
-                                            <div className="flex items-center gap-2 mt-3 text-xs text-slate-400">
-                                                {task.cost > 0 && (
-                                                    <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-50">
-                                                        <button
-                                                            onClick={() => {
-                                                                dispatch(setPreTripTasks(preTripTasks.map(t =>
-                                                                    t.id === task.id ? { ...t, isPaid: !t.isPaid } : t
-                                                                )));
-                                                            }}
-                                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${task.isPaid
-                                                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                                                : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
-                                                                } `}
-                                                        >
-                                                            <CheckCircle size={14} className={task.isPaid ? 'text-emerald-500' : 'text-slate-300'} />
-                                                            {task.isPaid ? t.paid : t.markPaid}
-                                                        </button>
-                                                    </div>)}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <TaskItem
+                        key={task.id}
+                        task={task}
+                        onToggle={toggleTask}
+                        onEdit={openEditModal}
+                        onDelete={deleteTask}
+                        onTogglePaid={togglePaid}
+                        onPreviewFile={setPreviewFile}
+                        documents={documents}
+                        t={t}
+                    />
                 ))}
             </div>
 
-            <Modal
-                isOpen={modal.isOpen}
-                onClose={() => setModal({ ...modal, isOpen: false })}
-                title={modal.type === 'add' ? t.addItem : t.editTask}
-            >
-                <form onSubmit={handleModalSubmit} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.title}</label>
-                            <input
-                                autoFocus
-                                className="w-full p-2 bg-slate-50 border border-slate-200 border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                placeholder={t.taskPlaceholder}
-                                value={taskForm.text}
-                                onChange={(e) => setTaskForm({ ...taskForm, text: e.target.value })}
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.deadline}</label>
-                            <input
-                                type="date"
-                                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                                value={taskForm.deadline}
-                                onChange={(e) => setTaskForm({ ...taskForm, deadline: e.target.value })}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.category}</label>
-                            <select
-                                value={taskForm.category}
-                                onChange={(e) => setTaskForm({ ...taskForm, category: e.target.value })}
-                                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                            >
-                                {BUDGET_CATEGORIES.map(c => (
-                                    <option key={c} value={c}>
-                                        {t[`cat_${c.toLowerCase().replace(/ & /g, '_').replace(/ /g, '_')}`] || c}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.timeToComplete}</label>
-                            <input
-                                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                placeholder={t.timePlaceholder}
-                                value={taskForm.timeToComplete}
-                                onChange={(e) => setTaskForm({ ...taskForm, timeToComplete: e.target.value })}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-100">
-                        <label className="block text-sm font-bold text-slate-700 mb-2">{t.cost}</label>
-                        <div className="flex gap-2 items-center">
-                            <input
-                                type="number"
-                                className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm min-w-0 font-bold"
-                                placeholder="0"
-                                value={taskForm.cost}
-                                onChange={(e) => setTaskForm({ ...taskForm, cost: e.target.value })}
-                            />
-                            <div className="w-28 shrink-0">
-                                <select
-                                    value={taskForm.currency}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        setTaskForm({ ...taskForm, currency: val });
-                                        dispatch(updateTripDetails({ lastUsedCurrency: val }));
-                                    }}
-                                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                                >
-                                    {activeCurrencies.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
-                                </select>
-                            </div>
-                            <div className="flex items-center bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 shrink-0 h-[38px]">
-                                <input
-                                    type="checkbox"
-                                    id="modal-paid"
-                                    checked={taskForm.isPaid}
-                                    onChange={(e) => setTaskForm({ ...taskForm, isPaid: e.target.checked })}
-                                    className="w-4 h-4 rounded text-indigo-600 mr-2"
-                                />
-                                <label htmlFor="modal-paid" className="text-[10px] font-bold text-slate-500 uppercase cursor-pointer select-none">
-                                    {t.paid}
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.notes}</label>
-                        <textarea
-                            className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm h-24 focus:ring-2 focus:ring-indigo-500 outline-none"
-                            placeholder={t.notesPlaceholder}
-                            value={taskForm.notes}
-                            onChange={(e) => setTaskForm({ ...taskForm, notes: e.target.value })}
-                            rows="2"
-                        />
-                    </div>
-
-                    {/* Attachments */}
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{t.attachments} & {t.links}</label>
-                        <AttachmentManager
-                            attachmentIds={taskForm.attachmentIds || []}
-                            links={taskForm.links || []}
-                            onUpdate={(data) => setTaskForm({ ...taskForm, ...data })}
-                            t={t}
-                        />
-                    </div>
-
-                    <div className="flex justify-end gap-2 pt-2">
-                        <Button variant="secondary" onClick={() => setModal({ ...modal, isOpen: false })}>{t.cancel}</Button>
-                        <Button type="submit" className="flex-1" icon={modal.type === 'add' ? Plus : CheckCircle}>{modal.type === 'add' ? t.addItem : t.saveChanges}</Button>
-                    </div>
-                </form>
-            </Modal>
+            <TaskFormModal
+                isOpen={modalOpen}
+                onClose={() => { setModalOpen(false); setEditingTask(null); }}
+                onSubmit={handleModalSubmit}
+                initialData={editingTask}
+                activeCurrencies={activeCurrencies}
+                categories={BUDGET_CATEGORIES}
+                t={t}
+            />
 
             <ConfirmModal
                 isOpen={confirmDelete.isOpen}

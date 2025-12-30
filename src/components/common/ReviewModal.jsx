@@ -1,17 +1,19 @@
 import React from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Check, X, Sparkles, RotateCcw, Trash2, Edit3, PlusCircle } from 'lucide-react';
-import { implementProposedChanges as applyProposedChanges, discardProposedChanges, toggleProposedChange } from '../store/tripSlice';
-import { Button } from './CommonUI';
-import { LOCALES } from '../i18n/locales';
+import { discardProposedChanges, toggleProposedChange } from '../../store/tripSlice';
+import { implementProposedChanges as applyProposedChanges } from '../../store/thunks';
+import { Modal } from './Modal';
+import { Button } from './Button';
+import { LOCALES } from '../../i18n/locales';
 
 export const ReviewModal = () => {
     const dispatch = useDispatch();
     const proposedChanges = useSelector(state => state.trip.proposedChanges);
-    const itinerary = useSelector(state => state.trip.itinerary);
-    const preTripTasks = useSelector(state => state.trip.preTripTasks);
-    const packingList = useSelector(state => state.trip.packingList);
-    const language = useSelector(state => state.trip.language);
+    const itinerary = useSelector(state => state.itinerary.items);
+    const preTripTasks = useSelector(state => state.resources.tasks);
+    const packingList = useSelector(state => state.packing.list);
+    const language = useSelector(state => state.ui.language);
     const t = LOCALES[language || 'en'];
 
     if (!proposedChanges) return null;
@@ -34,7 +36,7 @@ export const ReviewModal = () => {
     };
 
     const getItemLabel = (id) => {
-        if (!id || String(id) === 'undefined' || String(id) === 'null') return t.unnamedItem || 'Unnamed Item';
+        if (!id || String(id) === 'undefined' || String(id) === 'null') return t.unnamedItem;
         const item = findOriginalItem(id);
         if (item) return item.title || item.text || item.category || `Item ${id}`;
         return `Item ${id}`;
@@ -45,7 +47,7 @@ export const ReviewModal = () => {
     };
 
     const renderContent = () => {
-        if (!data) return <p>{t.noData || "No data received."}</p>;
+        if (!data) return <p>{t.noDataReceived}</p>;
 
         const sections = [];
         const { adds = [], updates = [], deletes = [] } = data;
@@ -64,7 +66,7 @@ export const ReviewModal = () => {
                             return (
                                 <div key={`add-${idx}`} className={`p-3 bg-white border rounded-lg shadow-sm text-sm transition-all duration-200 flex justify-between items-start group ${item.ignored ? 'opacity-40 grayscale border-slate-200' : 'border-emerald-100 hover:border-emerald-300'}`}>
                                     <div className="flex-1">
-                                        <div className={`font-bold text-slate-800 ${item.ignored ? 'line-through' : ''}`}>{item.title || item.text || (item.category ? item.category + ' items' : 'New Content')}</div>
+                                        <div className={`font-bold text-slate-800 ${item.ignored ? 'line-through' : ''}`}>{item.title || item.text || (item.category ? item.category + ' items' : t.newContent)}</div>
                                         {targetArea === 'itinerary' && (
                                             <div className="text-xs text-slate-500 mt-1 flex flex-wrap gap-2 items-center">
                                                 <span>📅 {item.startDate}</span>
@@ -233,7 +235,10 @@ export const ReviewModal = () => {
                     <Button variant="secondary" onClick={() => dispatch(discardProposedChanges())} icon={X} className="text-red-600 hover:bg-red-50 hover:text-red-700 border-red-200">
                         {t.reject}
                     </Button>
-                    <Button variant="primary" onClick={() => dispatch(applyProposedChanges())} icon={Check}>
+                    <Button variant="primary" onClick={async () => {
+                        await dispatch(applyProposedChanges());
+                        dispatch(discardProposedChanges());
+                    }} icon={Check}>
                         {t.acceptChanges}
                     </Button>
                 </div>

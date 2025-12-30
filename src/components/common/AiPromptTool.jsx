@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, Paperclip, X } from 'lucide-react';
 import { AttachmentManager } from './AttachmentManager';
-import { Button } from './CommonUI';
+import { Button } from './Button';
 
 export const AiPromptTool = ({ onGenerate, loading, aiMode, setAiMode, t, placeholder = "AI Suggestions...", resetTrigger }) => {
     const [localPrompt, setLocalPrompt] = useState('');

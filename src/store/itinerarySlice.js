@@ -44,13 +44,13 @@ export const itinerarySlice = createSlice({
             });
         },
         applyItineraryChanges: (state, action) => {
-            const { ads = [], updates = [], deletes = [] } = action.payload;
+            const { adds = [], updates = [], deletes = [] } = action.payload;
 
-            ads.forEach(e => {
+            adds.forEach(e => {
                 state.items.push({
                     ...e,
                     id: e.id || generateId('ai-event'),
-                    cost: e.estimatedCost || e.cost || 0,
+                    cost: e.cost || 0,
                     isPaid: false,
                     isEditing: false,
                     attachmentIds: e.attachmentIds || []

@@ -24,7 +24,7 @@ export const generateTrip = createAsyncThunk(
         const { apiKey, tripDetails, selectedModel } = trip;
         const { language } = ui;
 
-        if (!apiKey && selectedModel !== 'local-nano') return rejectWithValue("API Key missing");
+        if (!apiKey && selectedModel !== 'local-nano') return rejectWithValue({ message: "API Key missing", isAiError: true });
 
         try {
             const data = await generateTripContent(
@@ -49,7 +49,7 @@ export const generateTrip = createAsyncThunk(
             if (error.status === 429 || error.message?.includes('429')) {
                 return rejectWithValue({ code: 429, message: "Quota Exceeded" });
             }
-            return rejectWithValue({ message: error.message });
+            return rejectWithValue({ message: error.message, isAiError: true });
         }
     }
 );
@@ -106,11 +106,20 @@ export const implementProposedChanges = createAsyncThunk(
         const { proposedChanges } = getState().trip;
         if (!proposedChanges || !proposedChanges.data) return;
 
-        const { data } = proposedChanges;
+        const { data, targetArea } = proposedChanges;
 
-        dispatch(applyItineraryChanges(data));
-        dispatch(applyTaskChanges(data));
-        dispatch(applyPackingChanges(data));
+        // Prevent leakage by strict routing
+        if (targetArea === 'itinerary' || targetArea === 'all') {
+            dispatch(applyItineraryChanges(data));
+        }
+
+        if (targetArea === 'tasks' || targetArea === 'all') {
+            dispatch(applyTaskChanges(data));
+        }
+
+        if (targetArea === 'packing' || targetArea === 'all') {
+            dispatch(applyPackingChanges(data));
+        }
 
         return;
     }

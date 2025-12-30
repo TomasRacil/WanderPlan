@@ -23,6 +23,7 @@ export const resourceSlice = createSlice({
                 if (!state.documents[id]) {
                     state.documents[id] = {
                         ...doc,
+                        size: doc.size || 0,
                         summary: doc.summary || '',
                         includeInPrint: doc.includeInPrint ?? true,
                         createdAt: doc.createdAt || new Date().toISOString()
@@ -88,9 +89,9 @@ export const resourceSlice = createSlice({
             });
         },
         applyTaskChanges: (state, action) => {
-            const { ads = [], updates = [], deletes = [] } = action.payload;
+            const { adds = [], updates = [], deletes = [] } = action.payload;
 
-            ads.forEach(t => {
+            adds.forEach(t => {
                 state.tasks.push({
                     ...t,
                     id: t.id || generateId('ai-task'),

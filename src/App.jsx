@@ -7,7 +7,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react'
 
 import { COLORS } from './data/uiConstants';
 import {
-  setActiveTab, setShowSettings, setLanguage, clearQuotaError
+  setActiveTab, setShowSettings, setLanguage, clearQuotaError, clearAiError
 } from './store/uiSlice';
 import {
   loadFullTrip, setApiKey, generateTrip, initializeTrip, setSelectedModel
@@ -22,10 +22,11 @@ import { Itinerary } from './components/Itinerary';
 import { Budget } from './components/Budget';
 import { Map } from './components/Map';
 import { LOCALES } from './i18n/locales';
-import { Button } from './components/CommonUI';
-import { ReviewModal } from './components/ReviewModal';
-import { ErrorModal } from './components/ErrorModal';
-import { DocumentManagerModal } from './components/DocumentManagerModal';
+import { Button } from './components/common/Button';
+import { ReviewModal } from './components/common/ReviewModal';
+import { ErrorModal } from './components/common/ErrorModal';
+import { DocumentManagerModal } from './components/common/DocumentManagerModal';
+import { getNavItems } from './config/navigation';
 
 function WanderPlanContent() {
   const dispatch = useDispatch();
@@ -33,7 +34,7 @@ function WanderPlanContent() {
   const { items: itinerary } = useSelector(state => state.itinerary);
   const { list: packingList } = useSelector(state => state.packing);
   const { tasks: preTripTasks, documents, distilledContext, phrasebook } = useSelector(state => state.resources);
-  const { activeTab, showSettings, loading, language, quotaError, isInitialized } = useSelector(state => state.ui);
+  const { activeTab, showSettings, loading, language, quotaError, aiError, isInitialized } = useSelector(state => state.ui);
   const t = LOCALES[language];
 
   // PWA Update
@@ -139,14 +140,7 @@ function WanderPlanContent() {
     e.target.value = '';
   };
 
-  const navItems = [
-    { id: 'overview', icon: Home, label: t.overview },
-    { id: 'tasks', icon: CheckSquare, label: t.tasks },
-    { id: 'packing', icon: Plane, label: t.packing },
-    { id: 'itinerary', icon: Calendar, label: t.itinerary },
-    { id: 'budget', icon: Wallet, label: t.budget },
-    { id: 'map', icon: MapIcon, label: t.map },
-  ];
+  const navItems = getNavItems(t);
 
   return (
     <div className={`h-screen flex flex-col ${COLORS.bg} text-slate-800 font-sans selection:bg-indigo-100 overflow-hidden`}>
@@ -207,10 +201,14 @@ function WanderPlanContent() {
       {/* Review Modal for AI Changes */}
       <ReviewModal />
 
-      {/* Error Modal for Quota Limits */}
+      {/* Error Modal for Quota Limits and AI Failures */}
       <ErrorModal
-        error={quotaError}
-        onClose={() => dispatch(clearQuotaError())}
+        error={quotaError || aiError}
+        onClose={() => {
+          if (quotaError) dispatch(clearQuotaError());
+          if (aiError) dispatch(clearAiError());
+        }}
+        t={t}
       />
 
       {/* Mobile Bottom Navigation */}

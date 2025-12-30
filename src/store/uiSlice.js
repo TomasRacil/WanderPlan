@@ -7,6 +7,7 @@ const initialState = {
     showSettings: false,
     loading: false,
     quotaError: null,
+    aiError: null,
     isInitialized: false
 };
 
@@ -31,6 +32,12 @@ export const uiSlice = createSlice({
         },
         clearQuotaError: (state) => {
             state.quotaError = null;
+        },
+        setAiError: (state, action) => {
+            state.aiError = action.payload;
+        },
+        clearAiError: (state) => {
+            state.aiError = null;
         },
         setInitialized: (state, action) => {
             state.isInitialized = action.payload;
@@ -64,6 +71,8 @@ export const uiSlice = createSlice({
                 state.loading = false;
                 if (action.payload && action.payload.code === 429) {
                     state.quotaError = action.payload;
+                } else {
+                    state.aiError = action.payload || { message: "Unknown AI Error" };
                 }
             });
     }
@@ -76,6 +85,8 @@ export const {
     setLoading,
     setQuotaError,
     clearQuotaError,
+    setAiError,
+    clearAiError,
     setInitialized
 } = uiSlice.actions;
 

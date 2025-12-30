@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { addDocuments } from '../store/resourceSlice';
-import { generateId } from '../utils/idGenerator';
+import { addDocuments } from '../../store/resourceSlice';
+import { generateId } from '../../utils/idGenerator';
 import { Paperclip, Link as LinkIcon, X, Plus, Image as ImageIcon, FileText, Trash2, ExternalLink, Download, Library, CheckSquare } from 'lucide-react';
-import { Button } from './CommonUI';
+import { Button } from './Button';
 
 export const AttachmentManager = ({ attachmentIds = [], links = [], onUpdate, t }) => {
     const dispatch = useDispatch();
@@ -32,6 +32,21 @@ export const AttachmentManager = ({ attachmentIds = [], links = [], onUpdate, t 
         let processedCount = 0;
 
         files.forEach(file => {
+            // Deduplication Check
+            const existingDoc = Object.values(allDocuments).find(doc =>
+                doc.name === file.name && doc.size === file.size
+            );
+
+            if (existingDoc) {
+                newIdsForParent.push(String(existingDoc.id));
+                processedCount++;
+                if (processedCount === files.length) {
+                    onUpdate({ attachmentIds: [...new Set([...attachmentIds, ...newIdsForParent])], links });
+                    setError(null);
+                }
+                return;
+            }
+
             if (file.size > 5 * 1024 * 1024) {
                 errorMsg = t?.fileTooLarge || "File too large (Max 5MB)";
                 processedCount++;
@@ -46,6 +61,7 @@ export const AttachmentManager = ({ attachmentIds = [], links = [], onUpdate, t 
                 const newDoc = {
                     id,
                     name: file.name,
+                    size: file.size,
                     type: file.type || 'application/octet-stream',
                     data: base64,
                     summary: '',
@@ -60,8 +76,8 @@ export const AttachmentManager = ({ attachmentIds = [], links = [], onUpdate, t 
                 if (processedCount === files.length) {
                     if (newDocsToStore.length > 0) {
                         dispatch(addDocuments(newDocsToStore));
-                        onUpdate({ attachmentIds: [...attachmentIds, ...newIdsForParent], links });
                     }
+                    onUpdate({ attachmentIds: [...new Set([...attachmentIds, ...newIdsForParent])], links });
                     setError(null);
                 }
             };

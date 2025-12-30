@@ -1,19 +1,21 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { Calendar, CheckSquare, Camera, Sparkles, Globe, Wallet, Save, Download, Upload, Languages, Loader } from 'lucide-react';
-import { COLORS } from '../data/uiConstants';
-import { Card, Button } from './CommonUI';
-import { updateTripDetails, setCustomPrompt, generateTrip } from '../store/tripSlice';
+import { Calendar, CheckSquare, Sparkles, Wallet, Save, Download, Upload, Languages } from 'lucide-react';
+import { Card } from './common/Card';
+import { Button } from './common/Button';
+import { generateTrip } from '../store/tripSlice';
 import { setActiveTab } from '../store/uiSlice';
 import { setTasks as setPreTripTasks } from '../store/resourceSlice';
 import { calculateBudgetTotals, formatMoney, parseCost } from '../utils/helpers';
-import { ALL_CURRENCIES } from '../data/currencies';
-import { SearchableSelect } from './SearchableSelect';
 import { LOCALES } from '../i18n/locales';
+
+// Sub-components
+import { TripHeader } from './overview/TripHeader';
+import { TripSettingsCard } from './overview/TripSettingsCard';
 
 export const Overview = ({ onSave, onLoad }) => {
   const dispatch = useDispatch();
-  const { tripDetails, customPrompt, expenses, exchangeRates = {} } = useSelector(state => state.trip);
+  const { tripDetails, expenses, exchangeRates = {} } = useSelector(state => state.trip);
   const { items: itinerary } = useSelector(state => state.itinerary);
   const { tasks: preTripTasks, phrasebook } = useSelector(state => state.resources);
   const { loading, language: languageCode } = useSelector(state => state.ui);
@@ -26,8 +28,8 @@ export const Overview = ({ onSave, onLoad }) => {
   const percentage = isUnlimited ? 0 : Math.min(100, (budgetTotals.totalSpent / totalBudget) * 100);
 
   // Auto-refresh timer to update "Now" for focus logic
-  const [now, setNow] = React.useState(new Date());
-  React.useEffect(() => {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 60000); // Update every minute
     return () => clearInterval(timer);
   }, []);
@@ -85,44 +87,7 @@ export const Overview = ({ onSave, onLoad }) => {
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      <div className="relative h-80 rounded-2xl overflow-hidden group shadow-lg">
-        <img src={tripDetails.coverImage} alt="Cover" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end p-6 text-white">
-          <div className="flex flex-col gap-2 mb-4">
-            <input
-              type="text"
-              value={tripDetails.destination}
-              onChange={(e) => dispatch(updateTripDetails({ destination: e.target.value }))}
-              placeholder={t.destination}
-              className="bg-transparent border-b border-white/30 text-3xl font-bold focus:outline-none w-full placeholder:text-white/50"
-            />
-            <input
-              type="text"
-              value={tripDetails.origin || ''}
-              onChange={(e) => dispatch(updateTripDetails({ origin: e.target.value }))}
-              placeholder={t.origin}
-              className="bg-transparent border-b border-white/20 text-sm focus:outline-none w-full text-white/80 placeholder:text-white/40"
-            />
-          </div>
-          <div className="flex flex-wrap gap-6 text-white/90 items-end">
-            <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg backdrop-blur-sm">
-              <Calendar size={16} />
-              <input type="date" className="bg-transparent focus:outline-none text-sm" value={tripDetails.startDate} onChange={(e) => dispatch(updateTripDetails({ startDate: e.target.value }))} />
-              <span>→</span>
-              <input type="date" className="bg-transparent focus:outline-none text-sm" value={tripDetails.endDate} min={tripDetails.startDate} onChange={(e) => dispatch(updateTripDetails({ endDate: e.target.value }))} />
-            </div>
-            <button
-              onClick={() => {
-                const url = prompt(t.changeCover + ":");
-                if (url) dispatch(updateTripDetails({ coverImage: url }));
-              }}
-              className="ml-auto text-xs bg-black/40 hover:bg-black/60 px-2 py-1 rounded flex items-center gap-1"
-            >
-              <Camera size={12} /> {t.changeCover}
-            </button>
-          </div>
-        </div>
-      </div>
+      <TripHeader tripDetails={tripDetails} t={t} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
@@ -168,78 +133,7 @@ export const Overview = ({ onSave, onLoad }) => {
             </Card>
           )}
 
-          <Card className="p-6 border-slate-200 bg-white/50 backdrop-blur-sm !overflow-visible shadow-indigo-100/50">
-            <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-3">
-              <h3 className="text-lg font-bold flex items-center gap-3 text-slate-800">
-                <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
-                  <Globe size={18} />
-                </div>
-                {t.tripSettings || "Trip Settings"}
-              </h3>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded">Basics</span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-x-4 gap-y-6">
-              <div className="space-y-1.5">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">{t.travelStyle || "Travel Style"}</label>
-                <select
-                  value={tripDetails.travelStyle}
-                  onChange={(e) => dispatch(updateTripDetails({ travelStyle: e.target.value }))}
-                  className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all shadow-sm hover:border-slate-300"
-                >
-                  <option value="Balanced">{t.balanced}</option>
-                  <option value="Relaxed">{t.relaxed}</option>
-                  <option value="Adventure">{t.adventure}</option>
-                  <option value="Foodie">{t.foodie}</option>
-                  <option value="Cultural">{t.cultural}</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5 !overflow-visible">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">{t.currency || "Home Currency"}</label>
-                <div className="relative z-50">
-                  <SearchableSelect
-                    options={ALL_CURRENCIES}
-                    value={tripDetails.homeCurrency}
-                    onChange={(val) => dispatch(updateTripDetails({ homeCurrency: val }))}
-                    labelKey="name"
-                    valueKey="code"
-                    placeholder={t.currency}
-                    variant="light"
-                    renderOption={(opt) => `${opt.code} - ${opt.name}`}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">{t.budget || "Total Budget"}</label>
-                <div className="relative group">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none transition-colors group-focus-within:text-indigo-600">
-                    <span className="text-xs font-bold text-slate-400">{tripDetails.homeCurrency}</span>
-                  </div>
-                  <input
-                    value={tripDetails.budget}
-                    onChange={(e) => dispatch(updateTripDetails({ budget: e.target.value }))}
-                    placeholder="0.00"
-                    className="w-full bg-white border border-slate-200 rounded-xl p-2.5 pl-12 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none font-bold text-slate-700 transition-all shadow-sm hover:border-slate-300"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">{t.travelers || "Travelers"}</label>
-                <div className="relative group">
-                  <input
-                    type="number"
-                    min="1"
-                    value={tripDetails.travelers || 1}
-                    onChange={(e) => dispatch(updateTripDetails({ travelers: parseInt(e.target.value) || 1 }))}
-                    className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none font-bold text-slate-700 transition-all shadow-sm hover:border-slate-300"
-                  />
-                </div>
-              </div>
-            </div>
-          </Card>
+          <TripSettingsCard tripDetails={tripDetails} t={t} />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="p-6 border-slate-200 bg-white/50 backdrop-blur-sm">

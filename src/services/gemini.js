@@ -26,6 +26,8 @@ import { getItinerarySchema } from '../schemas/itinerary';
 import { getTasksSchema } from '../schemas/tasks';
 import { getPackingSchema } from '../schemas/packing';
 import { getPhrasebookSchema } from '../schemas/phrasebook';
+import { getSystemInstructions, constructUserPrompt } from '../ai/prompts';
+
 
 const getSchemaForArea = (targetArea, aiMode) => {
     switch (targetArea) {
@@ -40,112 +42,42 @@ const getSchemaForArea = (targetArea, aiMode) => {
 // Response Validation Schema
 const ResponseSchema = z.object({
     changeSummary: z.string().optional(),
-    adds: z.array(z.any()).optional(),
+    adds: z.array(z.object({}).catchall(z.any()).refine(item => {
+        return !!(item.title || item.text || item.category);
+    }, { message: "Added item missing required fields (title, text, or category)" })).optional(),
     updates: z.array(z.object({
         id: z.string(),
-        fields: z.record(z.any()).optional(),
+        fields: z.object({}).catchall(z.any()).optional(),
         newItems: z.array(z.string()).optional(),
         removeItems: z.array(z.string()).optional()
     })).optional(),
     deletes: z.union([z.array(z.string()), z.array(z.object({ id: z.string() }))]).optional(),
     newDistilledData: z.union([
         z.array(z.object({ attachmentId: z.string(), summary: z.string() })),
-        z.record(z.object({ extractedInfo: z.string() }))
+        z.object({}).catchall(z.object({ extractedInfo: z.string() }))
     ]).optional(),
     phrasebook: z.any().optional()
 });
 
 export const generateTripContent = async (apiKey, tripDetails, customPrompt, itinerary, preTripTasks, packingList, language = 'en', targetArea = 'all', aiMode = 'add', selectedModel = 'gemini-3-flash-preview', allDocuments = {}, promptAttachments = []) => {
-    const existingItinerary = JSON.stringify((itinerary || []).map(i => ({
-        id: i.id,
-        title: i.title,
-        date: i.startDate,
-        time: i.startTime,
-        duration: i.duration || 60,
-        type: i.type,
-        category: i.category,
-        cost: i.cost || 0,
-        currency: i.currency,
-        location: i.location,
-        attachmentIds: i.attachmentIds || []
-    })));
+    const allDocIds = new Set(Object.keys(allDocuments));
+    (promptAttachments || []).forEach(id => allDocIds.add(String(id)));
 
-    const existingTasks = JSON.stringify((preTripTasks || []).map(t => ({
-        id: t.id,
-        text: t.text,
-        status: t.done ? 'Done' : 'Pending',
-        cost: t.cost || 0,
-        currency: t.currency,
-        category: t.category,
-        attachmentIds: t.attachmentIds || []
-    })));
-
-    const existingPacking = JSON.stringify((packingList || []).map(cat => ({
-        id: cat.id,
-        category: cat.category,
-        items: (cat.items || []).map(i => ({ id: i.id, text: i.text, attachmentIds: i.attachmentIds || [] }))
-    })));
-
-    // Prepare Distilled Context String from allDocuments
-    let distilledInfoString = "";
-    const referencedDocIds = new Set();
-
-    // Collect all referenced IDs
-    (itinerary || []).forEach(i => (i.attachmentIds || []).forEach(id => referencedDocIds.add(String(id))));
-    (preTripTasks || []).forEach(t => (t.attachmentIds || []).forEach(id => referencedDocIds.add(String(id))));
-    (promptAttachments || []).forEach(id => referencedDocIds.add(String(id)));
-
-    const summarizedDocs = Array.from(referencedDocIds)
+    const summarizedDocs = Array.from(allDocIds)
         .map(id => ({ id, doc: allDocuments[id] }))
         .filter(item => item.doc && item.doc.summary);
 
-    if (summarizedDocs.length > 0) {
-        console.log("ℹ️ Using Summaries for Documents:", summarizedDocs.map(d => d.id));
-        distilledInfoString = "DISTILLED ATTACHMENT DATA (Do NOT request these files again):\n" +
-            summarizedDocs.map(item => `Attachment ${item.id}: ${item.doc.summary}`).join('\n');
-    }
-
-    const systemPrompt = `
-    You are an expert travel assistant for the app "WanderPlan".
-    Your goal is to modify the users trip based on their request.
-    
-    CRITICAL INSTRUCTIONS:
-    1.  **Attachments**: If the user provides documents (PDFs/Images), you MUST use them to extract relevant details (flight times, hotel names, costs).
-        -   If you create or update items based on these documents, you MUST include their IDs in the \`attachmentIds\` array for that item.
-        -   The attachment IDs will be provided in the text context as "[Attachment ID: <id>]".
-    2.  **Reasoning**: You MUST provide a \`changeSummary\` string explaining your changes and logic.
-    3.  **Strict JSON**: valid JSON only, no markdown blocks.
-    4.  **Dates**: The current date is ${new Date().toISOString().split('T')[0]}.
-    5.  **Context**: 
-        -   Current Trip Details: ${JSON.stringify(tripDetails)}
-    `;
-
-    const context = `
-        SYSTEM PROMPT: ${systemPrompt}
-        Current Trip: ${tripDetails.destination} (${tripDetails.startDate} to ${tripDetails.endDate})
-        Origin: ${tripDetails.origin || 'Unknown'}
-        Travel Style: ${tripDetails.travelStyle}
-        Travelers: ${tripDetails.travelers || 1}
-        Preferred Language for Response: ${language}
-        
-        CRITICAL: All existing items have unique IDs. Use these IDs to refer to items for updates or deletions.
-        Existing Itinerary (JSON): ${existingItinerary}
-        Existing Tasks (JSON): ${existingTasks}
-        Existing Packing (JSON): ${existingPacking}
-
-        ${distilledInfoString}
-    `;
-
-    const instructions = {
-        add: "Focus ONLY on suggesting NEW items that are not in the list.",
-        update: "Focus on UPDATING existing items using the provided context and any ATTACHMENTS. Use their 'id' to specify which item you are changing. Return ONLY the fields that changed.",
-        fill: "Look for gaps and return NEW items or UPDATES to existing placeholders to fill those gaps. Use provided ATTACHMENTS to extract missing details.",
-        dedupe: "Identify exact or semantic duplicates. Return ONLY a list of IDs to remove."
-    };
+    const context = JSON.stringify({
+        itinerary: itinerary || [],
+        tasks: preTripTasks || [],
+        packing: packingList || [],
+        distilledAttachments: summarizedDocs.map(item => ({ id: item.id, summary: item.doc.summary })),
+        preferredLanguage: language
+    });
 
     // Identify Fresh Attachments (Lazy Distillation)
     const allAttachments = [];
-    const rawDataNeededIds = Array.from(referencedDocIds).filter(id => {
+    const rawDataNeededIds = Array.from(allDocIds).filter(id => {
         const doc = allDocuments[id];
         return doc && !doc.summary && doc.data;
     });
@@ -164,17 +96,8 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
         }
     });
 
-    let systemInstruction = "";
-    if (allAttachments.length > 0) {
-        systemInstruction = `You are in Hybrid-Extraction mode. For any provided raw files, perform the requested task AND extract a dense, comprehensive summary of ALL information relevant to planning and executing a trip. 
-Let your intelligence decide what is important, but prioritize details that impact:
-- ITINERARY: Dates, times, addresses, and sequence of events.
-- BUDGET: Total costs, currencies, payment status, and pending balances.
-- PACKING: Included equipment, clothing requirements, or provided amenities.
-- PREPARATION: Confirmation numbers, check-in/out rules, required documents, and specific technical or legal constraints.
-Reflect this extraction in the 'newDistilledData' array.
-`;
-    }
+    const finalSystemInstruction = getSystemInstructions(new Date().toISOString().split('T')[0], tripDetails, rawDataNeededIds.length > 0, language);
+    const prompt = constructUserPrompt(context, customPrompt, aiMode, targetArea);
 
     // --- Schema Construction ---
     const baseSchemaProperties = getSchemaForArea(targetArea, aiMode);
@@ -185,8 +108,10 @@ Reflect this extraction in the 'newDistilledData' array.
         description: "A brief explanation of the changes made, including why specific items were added, updated, or deleted, especially if based on provided attachments."
     };
 
+    const requiredFields = [];
+
     // Add 'newDistilledData' if needed
-    if (allAttachments.length > 0) {
+    if (rawDataNeededIds.length > 0) {
         baseSchemaProperties.newDistilledData = {
             type: "ARRAY",
             items: {
@@ -198,28 +123,18 @@ Reflect this extraction in the 'newDistilledData' array.
                 required: ["attachmentId", "summary"]
             }
         };
+        requiredFields.push("newDistilledData");
     }
+
+    // Force mode-specific fields
+    if (aiMode === 'add') requiredFields.push("adds");
+    if (aiMode === 'update') requiredFields.push("updates");
 
     const finalSchema = {
         type: "OBJECT",
         properties: baseSchemaProperties,
-        // Make 'newDistilledData' required if we have attachments to force the model to fill it
-        required: allAttachments.length > 0 ? ["newDistilledData"] : []
+        required: requiredFields
     };
-
-    const prompt = `
-        SYSTEM INSTRUCTION: ${systemInstruction}
-    
-        CONTEXT:
-        ${context}
-
-        USER REQUEST: ${customPrompt || "No special requests."}
-
-        GOAL: ${aiMode.toUpperCase()} mode. ${instructions[aiMode] || instructions.add}
-        Target Area: ${targetArea}. 
-
-        Provide your response matching the defined JSON schema.
-    `;
 
     // Local Nano Implementation (Parsing Fallback)
     if (selectedModel === 'local-nano') {
@@ -227,7 +142,7 @@ Reflect this extraction in the 'newDistilledData' array.
             throw new Error("Local Gemini Nano is not available in this browser.");
         }
         const session = await window.ai.languageModel.create({
-            systemPrompt: systemInstruction
+            systemPrompt: finalSystemInstruction
         });
         if (allAttachments.length > 0) console.warn("Local Nano may not support image attachments yet.");
         const result = await session.prompt(prompt + " Return valid JSON.");
@@ -255,6 +170,9 @@ Reflect this extraction in the 'newDistilledData' array.
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             contents: [{ role: "user", parts: promptParts }],
+            system_instruction: {
+                parts: [{ text: finalSystemInstruction }]
+            },
             generationConfig: {
                 responseMimeType: "application/json",
                 responseSchema: finalSchema,

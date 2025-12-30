@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Briefcase, Plus, Trash2, Edit2, Sparkles } from 'lucide-react';
-import { SectionTitle, Card, Modal, Button, ConfirmModal } from './CommonUI';
-import { AiPromptTool } from './AiPromptTool';
+import { SectionTitle } from './common/SectionTitle';
+import { Card } from './common/Card';
+import { Modal } from './common/Modal';
+import { Button } from './common/Button';
+import { ConfirmModal } from './common/ConfirmModal';
+import { AiPromptTool } from './common/AiPromptTool';
 import { generateTrip } from '../store/tripSlice';
 import { setPackingList } from '../store/packingSlice';
 import { generateId } from '../utils/idGenerator';

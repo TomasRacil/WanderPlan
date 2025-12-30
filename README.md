@@ -31,6 +31,8 @@
     *   **[NEW] Lazy Distillation ⚗️**: Optimally processes attachments by extracting and caching text only once, reducing token usage on subsequent requests.
     *   **[NEW] AI Change Review System**: Preview, accept, or reject AI-generated suggestions before they are applied. 
     *   **[NEW] AI Modes**: Choose between "Add New", "Update Existing", "Fill Gaps", or "Remove Duplicates" for precise control.
+    *   **[NEW] Document Context Expansion**: AI now considers the *entire* document library for every request, allowing it to "link" information from unreferenced files.
+    *   **[NEW] Specialized Extraction**: Forceful instructions and schema enforcements ensure attachment IDs are linked to items created from them.
     *   **Context Aware**: Analyzes existing trip data (dates, style, current items) to provide relevant suggestions.
     *   **Garbage Collection**: Automatically cleans up AI-extracted context when attachments are deleted to keep memory fresh.
 *   **Smart Checklists**:
@@ -51,7 +53,8 @@
     *   **[NEW] Multimodal AI Integration**: Gemini "sees" and summarizes your documents (tickets, confirmations) to provide context-aware suggestions while minimizing token usage.
 *   **Localization 🌍**:
     *   Full support for **English (EN)** and **Czech (CS)**.
-    *   **Deep Localization**: Multilingual support extends to all modal labels, dropdowns (Budget Categories, Event Types), and placeholders.
+    *   **Deep AI Localization**: AI precisely follows the user's preferred language for all generated content while keeping internal summaries in English for speed.
+    *   **UI Localization**: Multilingual support extends to all modal labels, dropdowns (Budget Categories, Event Types), and placeholders.
     *   Language switcher in the header.
 *   **Interactive Map 🗺️**:
     *   **Date Navigation**: Filter markers by specific days or view the "Whole Trip".

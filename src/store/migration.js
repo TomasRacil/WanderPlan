@@ -1,11 +1,21 @@
 import { generateId } from '../utils/idGenerator';
 
+const estimateBase64Size = (base64) => {
+    if (!base64 || typeof base64 !== 'string') return 0;
+    // Base64 string looks like "data:image/png;base64,iVBOR..."
+    const part = base64.split(',')[1] || base64;
+    return Math.floor(part.length * 0.75);
+};
+
 const ensureIds = (items, prefix) => {
     if (!items) return [];
     return items.map(item => ({
         ...item,
         id: item.id || generateId(prefix),
         attachmentIds: item.attachmentIds || [],
+        // Legacy fix: unify cost
+        cost: item.cost ?? item.estimatedCost ?? 0,
+        estimatedCost: undefined,
         // Legacy fix
         attachments: undefined
     }));
@@ -32,6 +42,15 @@ export const migrateLegacyState = (legacyState) => {
 
     // CRITICAL: Check if already migrated
     if (legacyState.trip && legacyState.itinerary && legacyState.resources && legacyState.packing && legacyState.ui) {
+        // Even if already migrated, ensure documents have 'size'
+        const docs = legacyState.resources.documents || {};
+        let updated = false;
+        Object.values(docs).forEach(doc => {
+            if (doc.size === undefined && doc.data) {
+                doc.size = estimateBase64Size(doc.data);
+                updated = true;
+            }
+        });
         return legacyState;
     }
 
@@ -60,6 +79,7 @@ export const migrateLegacyState = (legacyState) => {
                     allDocs[id] = {
                         ...att,
                         id,
+                        size: att.size || estimateBase64Size(att.data),
                         summary: att.summary || att.aisummary || '',
                         createdAt: att.createdAt || new Date().toISOString()
                     };

@@ -119,3 +119,45 @@ export const calculateBudgetTotals = (expenses, itinerary, preTripTasks, tripDet
         breakdown
     };
 };
+
+export const calculateEndTime = (startDateStr, startTimeStr, durationMinutes, startTz, endTz) => {
+    if (!startDateStr || !startTimeStr) return { endDate: startDateStr, endTime: '' };
+
+    const start = new Date(`${startDateStr}T${startTimeStr}`);
+    const end = new Date(start.getTime() + durationMinutes * 60000);
+
+    let finalEnd = end;
+    let tzLabel = null;
+
+    if (startTz && endTz && startTz !== endTz) {
+        try {
+            const getOffset = (d, tz) => {
+                const str = d.toLocaleString('en-US', { timeZone: tz, timeZoneName: 'longOffset' });
+                const match = str.match(/([+-])(\d+):(\d+)/);
+                if (!match) return 0;
+                return (match[1] === '+' ? 1 : -1) * (parseInt(match[2]) * 60 + parseInt(match[3]));
+            };
+            const startOffset = getOffset(start, startTz);
+            const endOffset = getOffset(end, endTz);
+            const diff = endOffset - startOffset;
+            finalEnd = new Date(end.getTime() + diff * 60000);
+            tzLabel = endTz;
+        } catch (e) {
+            console.error('TZ Error', e);
+        }
+    }
+
+    const pad = n => n.toString().padStart(2, '0');
+    const endDate = `${finalEnd.getFullYear()}-${pad(finalEnd.getMonth() + 1)}-${pad(finalEnd.getDate())}`;
+    const endTime = `${pad(finalEnd.getHours())}:${pad(finalEnd.getMinutes())}`;
+
+    return { endDate, endTime, tzLabel };
+};
+
+export const formatDuration = (mins, t) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h > 0 && m > 0) return `${h}${t?.hoursAbbr || 'h'} ${m}${t?.minutesAbbr || 'm'}`;
+    if (h > 0) return `${h}${t?.hoursAbbr || 'h'}`;
+    return `${m}${t?.minutesAbbr || 'm'}`;
+};
