@@ -133,14 +133,15 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
     }
 
     // Force mode-specific fields
-    if (aiMode === 'add') requiredFields.push("adds");
-    if ((aiMode === 'update' || aiMode === 'fill') && targetArea === 'packing') {
-        // Packing splits updates
-        // We make them optional properties but at least one should be present ideally. 
-        // For schema enforcement, we can't easily say "one of", but we can list available properties.
-        // We won't force them in 'required' to avoid empty array errors if AI decides to do nothing.
-    } else if (aiMode === 'update') {
-        requiredFields.push("updates");
+    if (targetArea === 'phrasebook') {
+        requiredFields.push("phrasebook");
+    } else {
+        if (aiMode === 'add') requiredFields.push("adds");
+        if ((aiMode === 'update' || aiMode === 'fill') && targetArea === 'packing') {
+            // Packing splits updates
+        } else if (aiMode === 'update') {
+            requiredFields.push("updates");
+        }
     }
 
     const finalSchema = {

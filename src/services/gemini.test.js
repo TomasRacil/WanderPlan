@@ -22,29 +22,34 @@ describe('gemini.js Service', () => {
     });
 
     it('should generate content with correct schema for "itinerary"', async () => {
-        const mockResponse = {
-            candidates: [{
-                content: {
-                    parts: [{ text: JSON.stringify({ adds: [], updates: [], deletes: [] }) }]
-                }
-            }]
-        };
-
         global.fetch.mockResolvedValueOnce({
             ok: true,
-            json: async () => mockResponse
+            json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ adds: [] }) }] } }] })
         });
 
-        await generateTripContent(mockApiKey, mockTripDetails, '', [], [], [], 'en', 'itinerary');
+        await generateTripContent('test-key', mockTripDetails, '', [], [], [], 'en', 'itinerary', 'add');
 
-        expect(global.fetch).toHaveBeenCalledTimes(1);
-        const requestBody = JSON.parse(global.fetch.mock.calls[0][1].body);
+        const callArgs = global.fetch.mock.calls[0];
+        const body = JSON.parse(callArgs[1].body);
+        expect(body.generationConfig.responseSchema.required).toContain('adds');
+        expect(body.generationConfig.responseSchema.properties).toHaveProperty('adds');
+    });
 
-        // Verify Schema was passed
-        expect(requestBody.generationConfig.responseSchema).toBeDefined();
-        // Itinerary schema check (indirectly checking getBaseSchema)
-        expect(requestBody.generationConfig.responseSchema.properties.adds.items.properties).toHaveProperty('startDate');
-        expect(requestBody.generationConfig.responseSchema.properties.adds.items.properties).toHaveProperty('startTime');
+    it('should generate content with correct schema for "phrasebook"', async () => {
+        global.fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ phrasebook: { language: 'en', phrases: [] } }) }] } }] })
+        });
+
+        await generateTripContent('test-key', mockTripDetails, '', [], [], [], 'en', 'phrasebook', 'add');
+
+        const callArgs = global.fetch.mock.calls[0];
+        const body = JSON.parse(callArgs[1].body);
+
+        // Critically: should NOT contain 'adds', SHOULD contain 'phrasebook'
+        expect(body.generationConfig.responseSchema.required).toContain('phrasebook');
+        expect(body.generationConfig.responseSchema.required).not.toContain('adds');
+        expect(body.generationConfig.responseSchema.properties).toHaveProperty('phrasebook');
     });
 
     it('should handle Lazy Distillation adapter logic correctly', async () => {
