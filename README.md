@@ -8,6 +8,10 @@
 *   **Trip Overview**:
     *   Set destination, dates, travel style, and custom cover images.
     *   Trip duration calculator.
+*   **[NEW] Multi-Trip Dashboard 🗂️**:
+    *   **Manage Multiple Trips**: Create, switch between, and manage completely separate itineraries and packing lists for different journeys.
+    *   **Trip Cards**: Visual dashboard with cover images, dates, and quick actions (Export/Delete).
+    *   **Drag-and-Drop Import**: Easily import entire trip ZIP packages directly onto the dashboard.
 *   **Budget Tracking**:
     *   Set a total budget in your home currency.
     *   Log expenses with support for multiple currencies (automatic conversion to home currency).
@@ -56,13 +60,14 @@
         *   **Ownership Assignment**: Assign each bag to a specific traveler for shared oversight.
         *   **Hierarchical Grouping**: Toggle "By Bag" view to see a clear **Owner -> Bag -> Items** breakdown.
         *   **Global Display Format**: Bags are identified as `Owner - Bag Name` across the entire application.
-        *   **AI-Smart Sorting**: AI automatically assigns items to appropriate bags (e.g., liquids in checked luggage, electronics in carry-ons).
-        *   **Dynamic Badging**: Items display their assigned bag or AI-suggested bag type.
+        *   **Global Display Format**: Bags are identified as `Owner - Bag Name` across the entire application.
+        *   **Strict AI Assignment**: AI explicitly assigns items to specific bags (e.g., "Dad's Checked Bag") only when certain, avoiding confusing auto-assignments.
+        *   **Dynamic Badging**: Items display their assigned bag for easy tracking.
     *   **[NEW] Drag-and-Drop Sorting**: Easily move items between bags or categories to balance weight and ownership.
 *   **Data Persistence**:
-    *   **Save/Load**: Export your entire trip plan to a JSON file or **[NEW] ZIP Archive** (including attachments) and load it back anytime.
-    *   **IndexedDB**: Migrated storage layer to handle large file attachments (images/PDFs) without size limits.
-    *   **[NEW] Automatic Data Repair 🔧**: A robust internal migration engine that self-heals data structure inconsistencies from older application versions during initialization.
+    *   **[NEW] Full Trip Portability 📦**: Export your entire trip (including all images, PDFs, and metadata) as a **single ZIP file**.
+    *   **Seamless Import**: Restore any trip by simply dropping the ZIP file back into the dashboard.
+    *   **Automatic Data Repair 🔧**: A robust internal migration engine that self-heals data structure inconsistencies from older application versions during initialization or import.
 
 *   **Centralized Document Library �**:
     *   **[NEW] Project-wide Storage**: All uploaded documents are now stored in a central repository, allowing files to be reused across multiple itinerary events or pre-trip tasks without duplication.
@@ -98,13 +103,14 @@
 *   **[x] PWA Support**: Convert to Progressive Web App with update controls.
 *   **[x] Interactive Map**: Full Leaflet integration with date-based filtering.
 *   **[x] Automatic Timezones**: Coordinate-based timezone detection with background resolution.
-*   **[ ] Multi-Trip Management**: Allow users to create, save, and switch between multiple trips locally.
+*   **[x] Multi-Trip Management**: Allow users to create, save, and switch between multiple trips locally.
 *   **[ ] Calendar Export**: Export itinerary to **.ics** format for Google Calendar.
 *   **[ ] Cloud Sync**: User authentication and database storage for accessing trips across devices.
 *   **[ ] Collaborative Editing**: Real-time multiplayer editing for group travel planning.
 *   **[ ] Mobile App**: React Native mobile application for native experience.
 *   **[ ] Import Modal**: Create a simple text input modal ("Paste your email/confirmation here").
 *   **[ ] Extraction Prompt**: Create a dedicated "Extraction Mode" prompt that instructs Gemini to parse raw text into Itinerary, Items and Tasks specifically.
+*   **[ ] Weather Integration**: Show current weather on Dashboard and forecasted weather for Itinerary events.
 
 ---
 

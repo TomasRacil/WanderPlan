@@ -45,12 +45,16 @@ const ResponseSchema = z.object({
     adds: z.array(z.object({}).catchall(z.any()).refine(item => {
         return !!(item.title || item.text || item.category);
     }, { message: "Added item missing required fields (title, text, or category)" })).optional(),
-    updates: z.array(z.object({
-        id: z.string(),
-        fields: z.object({}).catchall(z.any()).optional(),
-        newItems: z.array(z.any()).optional(),
-        removeItems: z.array(z.string()).optional()
+    categoryUpdates: z.array(z.object({
+        categoryId: z.string(),
+        newItems: z.array(z.any())
     })).optional(),
+    itemUpdates: z.array(z.object({
+        itemId: z.string(),
+        updates: z.object({}).catchall(z.any())
+    })).optional(),
+    removeItems: z.array(z.string()).optional(),
+    updates: z.array(z.any()).optional(), // Keep valid for non-packing schemas or legacy
     deletes: z.union([z.array(z.string()), z.array(z.object({ id: z.string() }))]).optional(),
     newDistilledData: z.union([
         z.array(z.object({ attachmentId: z.string(), summary: z.string() })),
@@ -130,7 +134,14 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
 
     // Force mode-specific fields
     if (aiMode === 'add') requiredFields.push("adds");
-    if (aiMode === 'update') requiredFields.push("updates");
+    if ((aiMode === 'update' || aiMode === 'fill') && targetArea === 'packing') {
+        // Packing splits updates
+        // We make them optional properties but at least one should be present ideally. 
+        // For schema enforcement, we can't easily say "one of", but we can list available properties.
+        // We won't force them in 'required' to avoid empty array errors if AI decides to do nothing.
+    } else if (aiMode === 'update') {
+        requiredFields.push("updates");
+    }
 
     const finalSchema = {
         type: "OBJECT",
@@ -178,7 +189,8 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
             generationConfig: {
                 responseMimeType: "application/json",
                 responseSchema: finalSchema,
-                maxOutputTokens: 16384
+                maxOutputTokens: 65536,
+                temperature: 0.2
             }
         })
     });

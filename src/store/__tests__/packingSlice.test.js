@@ -26,7 +26,7 @@ describe('packingSlice', () => {
                 {
                     category: 'Existing Cat',
                     items: [
-                        { item: 'New Item', quantity: 2, recommendedBagType: 'My Suitcase' }
+                        { item: 'New Item', quantity: 2, bagId: 'bag1' }
                     ]
                 }
             ]
@@ -39,42 +39,6 @@ describe('packingSlice', () => {
         expect(newItem).toBeDefined();
         expect(newItem.quantity).toBe(2);
         expect(newItem.bagId).toBe('bag1');
-    });
-
-    it('should match bags by type if name not found', () => {
-        const aiResponse = {
-            adds: [
-                {
-                    category: 'Existing Cat',
-                    items: [
-                        { item: 'Liquid', quantity: 1, recommendedBagType: 'Carry-on' }
-                    ]
-                }
-            ]
-        };
-
-        const newState = packingReducer(initialState, applyPackingChanges(aiResponse));
-        const newItem = newState.list[0].items.find(i => i.text === 'Liquid');
-        expect(newItem.bagId).toBe('bag2');
-    });
-
-    it('should persist recommendedBagType when no matching bag found', () => {
-        const aiResponse = {
-            adds: [
-                {
-                    category: 'Existing Cat',
-                    items: [
-                        { item: 'Unique item', quantity: 1, recommendedBagType: 'Strange Bag' } // Bag doesn't exist
-                    ]
-                }
-            ]
-        };
-
-        const newState = packingReducer(initialState, applyPackingChanges(aiResponse));
-        const newItem = newState.list[0].items.find(i => i.text === 'Unique item');
-
-        expect(newItem.bagId).toBeNull();
-        expect(newItem.recommendedBagType).toBe('Strange Bag');
     });
 
     it('should not add duplicates (safe check with corrupt data)', () => {
@@ -138,7 +102,7 @@ describe('packingSlice', () => {
         expect(item.bagId).toBe('bag-123');
         expect(item.text).toBe('Winter Jacket');
     });
-    it('should update existing item properties during category update', () => {
+    it('should add NEW item if bagId differs during category update (dedupe strictness)', () => {
         const initialState = {
             list: [
                 {
@@ -153,8 +117,8 @@ describe('packingSlice', () => {
         };
 
         const aiPayload = {
-            updates: [{
-                id: 'cat-1',
+            categoryUpdates: [{ // Changed from updates to categoryUpdates for clarity, though reducer handles both mapped
+                categoryId: 'cat-1',
                 newItems: [{
                     item: 'T-shirt',
                     quantity: 5,
@@ -164,10 +128,15 @@ describe('packingSlice', () => {
         };
 
         const nextState = packingReducer(initialState, applyPackingChanges(aiPayload));
-        const item = nextState.list[0].items[0];
+        const items = nextState.list[0].items;
 
-        expect(item.text).toBe('T-shirt');
-        expect(item.quantity).toBe(5);
-        expect(item.bagId).toBe('bag-1');
+        expect(items.length).toBe(2); // Should have added new one
+        const newItem = items[1]; // The new one
+        expect(newItem.text).toBe('T-shirt');
+        expect(newItem.quantity).toBe(5);
+        expect(newItem.bagId).toBe('bag-1');
+
+        // precise check on original
+        expect(items[0].quantity).toBe(1);
     });
 });

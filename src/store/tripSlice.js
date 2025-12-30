@@ -6,7 +6,9 @@ import {
     fetchExchangeRates,
     fetchPairRate,
     loadFullTrip,
-    deleteGlobalAttachment
+    deleteGlobalAttachment,
+    loadSelectedTrip,
+    createNewTrip
 } from './thunks';
 // import { implementProposedChanges } from './thunks'; // Removed to avoid circular dependency
 
@@ -18,7 +20,9 @@ export {
     fetchExchangeRates,
     fetchPairRate,
     loadFullTrip,
-    deleteGlobalAttachment
+    deleteGlobalAttachment,
+    loadSelectedTrip,
+    createNewTrip
 };
 
 const initialState = {
@@ -38,7 +42,7 @@ const initialState = {
     expenses: [],
     exchangeRates: {},
     apiKey: localStorage.getItem('wanderplan_api_key') || '',
-    selectedModel: 'gemini-3-flash-preview',
+    selectedModel: localStorage.getItem('wanderplan_selected_model') || 'gemini-3-flash-preview',
     customPrompt: '',
     proposedChanges: null
 };
@@ -59,6 +63,7 @@ export const tripSlice = createSlice({
         },
         setSelectedModel: (state, action) => {
             state.selectedModel = action.payload;
+            localStorage.setItem('wanderplan_selected_model', action.payload);
         },
         setCustomPrompt: (state, action) => {
             state.customPrompt = action.payload;
@@ -113,6 +118,7 @@ export const tripSlice = createSlice({
     extraReducers: (builder) => {
         builder
             .addCase(initializeTrip.fulfilled, (state, action) => {
+                // If action.payload is null, we do nothing (waiting for user to select trip)
                 if (action.payload) {
                     const { trip } = action.payload;
                     state.tripDetails = { ...state.tripDetails, ...trip.tripDetails };
@@ -121,6 +127,23 @@ export const tripSlice = createSlice({
                     state.apiKey = trip.apiKey || state.apiKey;
                     state.selectedModel = trip.selectedModel || state.selectedModel;
                 }
+            })
+            .addCase(createNewTrip.fulfilled, (state, action) => {
+                // Reset to initial state but keep API key and Model preference if possible?
+                // Or just full reset. Let's do full reset but preserve API key.
+                const newId = action.payload;
+                const apiKey = state.apiKey;
+                const selectedModel = state.selectedModel;
+
+                // Reset logic (manually since we can't easily reference initialState if it's not pure)
+                state.tripDetails = { ...initialState.tripDetails, id: newId };
+                state.expenses = initialState.expenses;
+                state.exchangeRates = initialState.exchangeRates;
+                state.proposedChanges = null;
+                state.customPrompt = '';
+                // Persist user prefs
+                state.apiKey = apiKey;
+                state.selectedModel = selectedModel || localStorage.getItem('wanderplan_selected_model') || 'gemini-3-flash-preview';
             })
             .addCase(generateTrip.fulfilled, (state, action) => {
                 state.proposedChanges = action.payload;

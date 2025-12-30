@@ -15,6 +15,7 @@ export const ReviewModal = () => {
     const packingList = useSelector(state => state.packing.list);
     const bags = useSelector(state => state.packing.bags || []);
     const documents = useSelector(state => state.resources.documents || {});
+    const travelers = useSelector(state => state.trip.tripDetails?.travelerProfiles || []);
     const language = useSelector(state => state.ui.language);
     const t = LOCALES[language || 'en'];
 
@@ -29,6 +30,10 @@ export const ReviewModal = () => {
         if (targetArea === 'packing') {
             const cat = packingList.find(c => String(c.id) === stringId);
             if (cat) return cat;
+            // Check Bags
+            const bag = bags.find(b => String(b.id) === stringId);
+            if (bag) return { title: `Bag: ${bag.name}` }; // pseudo-item for label
+
             for (const category of packingList) {
                 const item = category.items.find(i => String(i.id) === stringId);
                 if (item) return item;
@@ -40,16 +45,23 @@ export const ReviewModal = () => {
     const getItemLabel = (id) => {
         if (!id || String(id) === 'undefined' || String(id) === 'null') return t.unnamedItem;
         const item = findOriginalItem(id);
-        if (item) return item.title || item.text || item.category || `Item ${id}`;
+        if (item) return item.title || item.text || item.category || (item.item ? item.item : `Item ${id}`); // Added item.item check just in case
         return `Item ${id}`;
     };
 
-    const getBagLabel = (bagId, recommendedType) => {
+    const getBagLabel = (bagId) => {
         if (bagId) {
             const bag = bags.find(b => String(b.id) === String(bagId));
-            if (bag) return bag.name;
+            if (bag) {
+                let label = bag.name;
+                if (bag.travelerId) {
+                    const owner = travelers.find(t => t.id === bag.travelerId);
+                    if (owner) label = `${owner.nickname || owner.name} - ${bag.name}`;
+                }
+                return label;
+            }
         }
-        return recommendedType || bagId;
+        return null; // Was recommendedType || bagId
     };
 
     const getAttachmentLabel = (docId) => {
@@ -88,18 +100,60 @@ export const ReviewModal = () => {
         if (!data) return <p>{t.noDataReceived}</p>;
 
         const sections = [];
-        const { adds = [], updates = [], deletes = [] } = data;
+        const { adds = [], updates = [], deletes = [], categoryUpdates = [], itemUpdates = [], removeItems = [] } = data;
+
+        // Normalize New Schema to Old Format for Rendering
+        // Merge categoryUpdates into adds/updates logic
+        const allAdds = [...adds];
+        const allUpdates = [...updates];
+        const allDeletes = [...deletes];
+
+        // 1. Map categoryUpdates -> visual updates or adds
+        categoryUpdates.forEach(catUpd => {
+            // Find if we should treat this as an update to a category
+            const existingCat = packingList.find(c => String(c.id) === String(catUpd.categoryId));
+            if (existingCat) {
+                // It's an update to an existing category
+                allUpdates.push({
+                    id: catUpd.categoryId,
+                    newItems: catUpd.newItems,
+                    fields: {} // no property changes, just new items
+                });
+            } else {
+                // Weird case, maybe treated as new category if we had that info, but for now map to update
+                allUpdates.push({
+                    id: catUpd.categoryId,
+                    newItems: catUpd.newItems
+                });
+            }
+        });
+
+        // 2. Map itemUpdates -> visual updates
+        itemUpdates.forEach(itemUpd => {
+            allUpdates.push({
+                id: itemUpd.itemId,
+                fields: itemUpd.updates
+            });
+        });
+
+        // 3. Map removeItems -> visual deletes or updates with removeItems
+        if (removeItems.length > 0) {
+            // We can show them as "Deletes" for simplicity
+            removeItems.forEach(id => {
+                allDeletes.push({ id });
+            });
+        }
 
         // Render Adds
-        if (adds.length > 0) {
+        if (allAdds.length > 0) {
             sections.push(
                 <div key="adds" className="mb-6">
                     <h4 className="flex items-center gap-2 text-sm font-bold text-emerald-600 mb-3 uppercase tracking-wider">
                         <PlusCircle size={16} />
-                        {t.newItems} ({adds.filter(a => !a.ignored).length}/{adds.length})
+                        {t.newItems} ({allAdds.filter(a => !a.ignored).length}/{allAdds.length})
                     </h4>
                     <div className="space-y-2">
-                        {adds.map((item, idx) => {
+                        {allAdds.map((item, idx) => {
                             const addId = JSON.stringify(item);
                             return (
                                 <div key={`add-${idx}`} className={`p-3 bg-white border rounded-lg shadow-sm text-sm transition-all duration-200 flex justify-between items-start group ${item.ignored ? 'opacity-40 grayscale border-slate-200' : 'border-emerald-100 hover:border-emerald-300'}`}>
@@ -118,7 +172,10 @@ export const ReviewModal = () => {
                                                     const itemData = typeof i === 'string' ? { item: i } : i;
                                                     const text = itemData.item || itemData.text;
                                                     const qty = itemData.quantity > 1 ? ` x${itemData.quantity}` : '';
-                                                    const bagTag = getBagLabel(itemData.bagId, itemData.recommendedBagType);
+                                                    // Try to predict which bag it will go to if bagId is missing but we have a type
+                                                    // Removing predictive logic as per user request to disable auto-assignment
+                                                    const effectiveBagId = itemData.bagId;
+                                                    const bagTag = getBagLabel(effectiveBagId);
 
                                                     return (
                                                         <span key={k} className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] flex items-center gap-1">
@@ -156,15 +213,15 @@ export const ReviewModal = () => {
         }
 
         // Render Updates
-        if (updates.length > 0) {
+        if (allUpdates.length > 0) {
             sections.push(
                 <div key="updates" className="mb-6">
                     <h4 className="flex items-center gap-2 text-sm font-bold text-blue-600 mb-3 uppercase tracking-wider">
                         <Edit3 size={16} />
-                        {t.updates} ({updates.filter(u => !u.ignored).length}/{updates.length})
+                        {t.updates} ({allUpdates.filter(u => !u.ignored).length}/{allUpdates.length})
                     </h4>
                     <div className="space-y-2">
-                        {updates.map((upd, idx) => (
+                        {allUpdates.map((upd, idx) => (
                             <div key={`upd-${idx}`} className={`p-3 bg-white border rounded-lg shadow-sm text-sm transition-all duration-200 flex justify-between items-start group ${upd.ignored ? 'opacity-40 grayscale border-slate-200' : 'border-blue-100 hover:border-blue-300'}`}>
                                 <div className="flex-1">
                                     <div className={`text-xs font-bold text-blue-500 mb-1 border-b border-blue-50 pb-1 ${upd.ignored ? 'line-through' : ''}`}>{getItemLabel(upd.id)}</div>
@@ -230,15 +287,15 @@ export const ReviewModal = () => {
         }
 
         // Render Deletes
-        if (deletes.length > 0) {
+        if (allDeletes.length > 0) {
             sections.push(
                 <div key="deletes" className="mb-6">
                     <h4 className="flex items-center gap-2 text-sm font-bold text-red-600 mb-3 uppercase tracking-wider">
                         <Trash2 size={16} />
-                        {t.deletes} ({deletes.filter(d => !d.ignored).length}/{deletes.length})
+                        {t.deletes} ({allDeletes.filter(d => !d.ignored).length}/{allDeletes.length})
                     </h4>
                     <div className="space-y-2">
-                        {deletes.map((del, idx) => {
+                        {allDeletes.map((del, idx) => {
                             const dId = typeof del === 'string' ? del : del.id;
                             const isIgnored = typeof del === 'object' && del.ignored;
                             return (

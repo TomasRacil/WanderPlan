@@ -215,15 +215,7 @@ export const Overview = ({ onSave, onLoad }) => {
           </Card>
 
 
-          <Card className="p-4 bg-slate-50 border-slate-200">
-            <h4 className="font-bold text-slate-700 mb-3 text-sm flex items-center gap-2">
-              <Save size={16} /> {t.tripData}
-            </h4>
-            <div className="flex gap-2">
-              <Button onClick={onSave} variant="secondary" className="flex-1 text-xs h-9" icon={Download}>{t.download}</Button>
-              <Button component="label" variant="secondary" className="flex-1 text-xs h-9" icon={Upload}>{t.upload}<input type="file" accept=".json, .zip" onChange={onLoad} className="hidden" /></Button>
-            </div>
-          </Card>
+
 
           {phrasebook ? (
             <Card className="p-5 bg-emerald-50 border-emerald-100 group relative shadow-sm">

@@ -34,12 +34,15 @@ const ensurePackingIds = (list) => {
                 const legacy = newItem.text;
                 newItem.text = legacy.item || legacy.text || "Unknown Item";
                 newItem.quantity = newItem.quantity || legacy.quantity || 1;
-                newItem.recommendedBagType = newItem.recommendedBagType || legacy.recommendedBagType || null;
+                // No longer supporting recommendedBagType
             }
 
+            // Migration: Strip recommendedBagType
+            const { recommendedBagType, ...rest } = newItem;
+
             return {
-                ...newItem,
-                id: newItem.id || generateId('pack')
+                ...rest,
+                id: rest.id || generateId('pack')
             };
         })
     }));
@@ -195,14 +198,17 @@ export const migrateLegacyState = (legacyState) => {
         }
     };
 
-    const tasks = ensureIds(legacyState.preTripTasks || [], 'task');
+    // Fix: Check multiple possible locations for tasks
+    const rawTasks = legacyState.preTripTasks || legacyState.tasks || [];
+    const tasks = ensureIds(rawTasks, 'task');
     tasks.forEach(gatherDocs);
 
     const itineraryItems = ensureIds(legacyState.itinerary || [], 'event');
     itineraryItems.forEach(gatherDocs);
 
     // Packing
-    const packing = ensurePackingIds(legacyState.packingList || []);
+    // Fix: check proper key for packing list
+    const packing = ensurePackingIds(legacyState.packingList || legacyState.packing?.list || []);
     packing.forEach(cat => {
         cat.items.forEach(gatherDocs);
     });

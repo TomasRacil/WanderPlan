@@ -1,10 +1,10 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { generateTripContent } from '../services/gemini';
 import { enhanceWithGeocoding, fetchTimezone } from '../services/geocoding';
-import { get } from 'idb-keyval';
+
 import { migrateLegacyState } from './migration';
 import { applyItineraryChanges, setItinerary, updateItineraryItem } from './itinerarySlice';
-import { applyPackingChanges, setPackingList } from './packingSlice';
+import { applyPackingChanges, setPackingList, setBags } from './packingSlice';
 import { applyTaskChanges, deleteDocument, removeAttachmentReference as removeTaskRef, setTasks, setDocuments, setDistilledContext, setPhrasebook } from './resourceSlice';
 import { updateTripDetails, setExpenses, setApiKey, setExchangeRates, setSelectedModel, setCustomPrompt } from './tripSlice';
 import { setLanguage } from './uiSlice';
@@ -67,19 +67,41 @@ export const generateTrip = createAsyncThunk(
     }
 );
 
+import { storage } from '../services/storage';
+import { loadTripsList } from './tripsListSlice';
+import { generateId } from '../utils/idGenerator';
+
 export const initializeTrip = createAsyncThunk(
     'trip/initialize',
-    async (_, { rejectWithValue }) => {
+    async (_, { dispatch }) => {
+        // This triggers the migration logic internally in storage.js
+        await dispatch(loadTripsList());
+        return null; // We don't load a specific trip anymore on init
+    }
+);
+
+export const loadSelectedTrip = createAsyncThunk(
+    'trip/loadSelected',
+    async (tripId, { dispatch, rejectWithValue }) => {
         try {
-            const saved = await get('wanderplan_current_trip');
-            if (saved) {
-                return migrateLegacyState(saved);
+            const tripData = await storage.loadTrip(tripId);
+            if (tripData) {
+                dispatch(loadFullTrip(tripData));
+                return tripId;
             }
-            return null;
+            return rejectWithValue('Trip not found');
         } catch (error) {
-            console.error("Failed to load/migrate", error);
             return rejectWithValue(error.message);
         }
+    }
+);
+
+export const createNewTrip = createAsyncThunk(
+    'trip/create',
+    async (_, { dispatch }) => {
+        // We will reset the store via a reducer action in tripSlice (we need to add it)
+        // For now, we can just return a new ID
+        return generateId('trip');
     }
 );
 
@@ -131,7 +153,8 @@ export const implementProposedChanges = createAsyncThunk(
         }
 
         if (targetArea === 'packing' || targetArea === 'all') {
-            dispatch(applyPackingChanges(data));
+            const { travelerProfiles } = getState().trip.tripDetails || {};
+            dispatch(applyPackingChanges({ ...data, travelers: travelerProfiles }));
         }
 
         return;
@@ -147,6 +170,10 @@ export const deleteGlobalAttachment = createAsyncThunk(
         dispatch(removeTaskRef(docId));
     }
 );
+
+
+
+// ... (imports remain)
 
 export const loadFullTrip = (inputData) => (dispatch) => {
     if (!inputData) return;
@@ -169,6 +196,7 @@ export const loadFullTrip = (inputData) => (dispatch) => {
 
     // Packing Slice
     if (tripData.packing?.list) dispatch(setPackingList(tripData.packing.list));
+    if (tripData.packing?.bags) dispatch(setBags(tripData.packing.bags));
 
     // Resource Slice
     const { resources } = tripData;

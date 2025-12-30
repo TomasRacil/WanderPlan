@@ -15,11 +15,17 @@ export const packingSlice = createSlice({
             state.list = (action.payload || []).map(cat => ({
                 ...cat,
                 id: cat.id || generateId('pcat'),
-                items: (cat.items || []).map(item => ({
-                    ...item,
-                    id: item.id || generateId('pack')
-                }))
+                items: (cat.items || []).map(item => {
+                    const { recommendedBagType, ...rest } = item;
+                    return {
+                        ...rest,
+                        id: rest.id || generateId('pack')
+                    };
+                })
             }));
+        },
+        setBags: (state, action) => {
+            state.bags = action.payload || [];
         },
         addPackingCategory: (state, action) => {
             state.list.push({
@@ -69,50 +75,47 @@ export const packingSlice = createSlice({
             });
         },
         applyPackingChanges: (state, action) => {
-            const { adds = [], updates = [], deletes = [] } = action.payload;
+            const { adds = [], categoryUpdates = [], itemUpdates = [], removeItems = [], updates = [], deletes = [] } = action.payload;
 
             // Helper to process AI item (string or object)
             const processAiItem = (aiItem) => {
                 let text = aiItem;
                 let quantity = 1;
                 let bagId = null;
-                let recommendedBagType = null;
 
                 if (typeof aiItem === 'object') {
                     text = aiItem.item || aiItem.text;
                     quantity = aiItem.quantity || 1;
-                    recommendedBagType = aiItem.recommendedBagType || null;
 
-                    // Prioritize direct bagId if provided by AI
-                    if (aiItem.bagId) {
-                        bagId = aiItem.bagId;
-                    } else if (recommendedBagType && state.bags) {
-                        // Try to find matching bag by name (fuzzy) or type
-                        const targetBag = state.bags.find(b =>
-                            b.name.toLowerCase().includes(recommendedBagType.toLowerCase()) ||
-                            b.type.toLowerCase() === recommendedBagType.toLowerCase()
-                        );
-                        if (targetBag) bagId = targetBag.id;
+                    // STRICTLY Prioritize direct bagId if provided by AI
+                    if (aiItem.bagId && String(aiItem.bagId).trim().length > 0) {
+                        bagId = String(aiItem.bagId);
                     }
                 }
-                return { text, quantity, bagId, recommendedBagType };
+                return { text, quantity, bagId };
             };
 
+            // 1. New Categories (adds)
             adds.forEach(newCat => {
                 const existingCat = state.list.find(c => c.category === newCat.category);
                 if (existingCat) {
                     newCat.items.forEach(newItem => {
-                        const { text, quantity, bagId, recommendedBagType } = processAiItem(newItem);
+                        const { text, quantity, bagId } = processAiItem(newItem);
                         if (!existingCat.items.find(i => {
                             const iText = typeof i.text === 'string' ? i.text : (i.text?.item || i.text?.text || '');
-                            return iText.toLowerCase() === text.toLowerCase();
+                            const textMatch = iText.toLowerCase() === text.toLowerCase();
+                            if (textMatch) {
+                                if (i.bagId && bagId && i.bagId !== bagId) return false;
+                                if (!i.bagId && bagId) return false;
+                                return true;
+                            }
+                            return false;
                         })) {
                             existingCat.items.push({
                                 id: generateId('ai-pack'),
                                 text,
                                 quantity,
                                 bagId,
-                                recommendedBagType,
                                 done: false
                             });
                         }
@@ -122,13 +125,12 @@ export const packingSlice = createSlice({
                         id: generateId('ai-pcat'),
                         category: newCat.category,
                         items: newCat.items.map(i => {
-                            const { text, quantity, bagId, recommendedBagType } = processAiItem(i);
+                            const { text, quantity, bagId } = processAiItem(i);
                             return {
                                 id: generateId('ai-pack'),
                                 text,
                                 quantity,
                                 bagId,
-                                recommendedBagType,
                                 done: false
                             };
                         })
@@ -136,44 +138,114 @@ export const packingSlice = createSlice({
                 }
             });
 
-            updates.forEach(upd => {
-                const catIndex = state.list.findIndex(c => String(c.id) === String(upd.id));
-                if (catIndex > -1) {
-                    const cat = state.list[catIndex];
-                    if (upd.newItems) {
-                        upd.newItems.forEach(ni => {
-                            const { text, quantity, bagId, recommendedBagType } = processAiItem(ni);
-                            const existingItem = cat.items.find(i => {
-                                const iText = typeof i.text === 'string' ? i.text : (i.text?.item || i.text?.text || '');
-                                return iText.toLowerCase() === text.toLowerCase();
-                            });
+            // 2. Add items to existing categories (categoryUpdates)
+            categoryUpdates.forEach(update => {
+                const cat = state.list.find(c => String(c.id) === String(update.categoryId));
+                if (cat && update.newItems) {
+                    update.newItems.forEach(newItem => {
+                        const { text, quantity, bagId } = processAiItem(newItem);
 
-                            if (existingItem) {
-                                // Update existing item properties
-                                existingItem.quantity = quantity;
-                                existingItem.bagId = bagId;
-                                existingItem.recommendedBagType = recommendedBagType;
-                            } else {
-                                // Add as new item
-                                cat.items.push({
-                                    id: generateId('ai-pack'),
-                                    text,
-                                    quantity,
-                                    bagId,
-                                    recommendedBagType,
-                                    done: false
-                                });
+                        // Check duplicates: Allow same item text if it's for a different bag
+                        const exists = cat.items.find(i => {
+                            const iText = typeof i.text === 'string' ? i.text : (i.text?.item || i.text?.text || '');
+                            const textMatch = iText.toLowerCase() === text.toLowerCase();
+
+                            // If bagIds are involved, they must also match to be considered a "duplicate"
+                            // If I have "Socks" in Bag A, and adding "Socks" to Bag B -> Not a duplicate.
+                            // If I have "Socks" in Bag A, and adding "Socks" to Bag A -> Duplicate.
+                            if (textMatch) {
+                                if (i.bagId && bagId && i.bagId !== bagId) return false; // Different bags = Not duplicate
+                                if (!i.bagId && bagId) return false; // Existing has no bag, new has bag = Not duplicate (usually)
+                                return true; // Same name, same (or no) bag = Duplicate
                             }
+                            return false;
                         });
-                    }
-                    if (upd.removeItems) {
-                        cat.items = cat.items.filter(i => !upd.removeItems.includes(String(i.id)) && !upd.removeItems.includes(i.text.toLowerCase()));
+
+                        if (!exists) {
+                            cat.items.push({
+                                id: generateId('ai-pack'),
+                                text,
+                                quantity,
+                                bagId,
+                                done: false
+                            });
+                        }
+                    });
+                }
+            });
+
+            // 3. Update specific items (itemUpdates)
+            itemUpdates.forEach(update => {
+                const { itemId, updates: itemChanges } = update;
+                if (!itemId) return;
+
+                // Find item in any category
+                for (const cat of state.list) {
+                    const item = cat.items.find(i => String(i.id) === String(itemId));
+                    if (item) {
+                        if (itemChanges.quantity !== undefined && itemChanges.quantity !== null) {
+                            item.quantity = itemChanges.quantity;
+                        }
+                        if (itemChanges.bagId !== undefined) item.bagId = itemChanges.bagId; // Allow clearing with null
+                        if (itemChanges.text) item.text = itemChanges.text;
+                        break; // Stop after finding item
                     }
                 }
             });
 
-            if (deletes.length > 0) {
-                const idsToDelete = deletes.map(String);
+            // 4. Legacy Support (updates) - handle mixed bag if AI slips up, but prioritize explicit fields
+            // Only run if categoryUpdates/itemUpdates were empty to avoid double processing
+            if (categoryUpdates.length === 0 && itemUpdates.length === 0 && updates.length > 0) {
+                updates.forEach(upd => {
+                    // Try to match category first
+                    const cat = state.list.find(c => String(c.id) === String(upd.id));
+                    if (cat) {
+                        // Treat as category update
+                        if (upd.newItems) {
+                            upd.newItems.forEach(newItem => {
+                                const { text, quantity, bagId } = processAiItem(newItem);
+                                if (!cat.items.find(i => (typeof i.text === 'string' ? i.text : i.text.text) === text)) {
+                                    cat.items.push({
+                                        id: generateId('ai-pack'), text, quantity, bagId, done: false
+                                    });
+                                }
+                            });
+                        }
+                    } else {
+                        // Try to match item
+                        for (const c of state.list) {
+                            const item = c.items.find(i => String(i.id) === String(upd.id));
+                            if (item && upd.newItems) {
+                                // Treat as item update via "newItems" array
+                                upd.newItems.forEach(ni => {
+                                    const p = processAiItem(ni);
+                                    if (p.bagId) item.bagId = p.bagId;
+                                    if (p.quantity) item.quantity = p.quantity;
+                                });
+                                break;
+                            }
+                        }
+                    }
+                });
+            }
+
+            // 5. Deletions
+            // Merge "removeItems" (flat array) and "deletes" (legacy array of strings or objects)
+            const allDeletes = new Set([...removeItems]);
+            deletes.forEach(d => {
+                if (typeof d === 'string') allDeletes.add(d);
+                else if (d.id) allDeletes.add(d.id);
+            });
+
+            // Also check for legacy "updates.removeItems" if present
+            if (updates.length > 0) {
+                updates.forEach(u => {
+                    if (u.removeItems) u.removeItems.forEach(id => allDeletes.add(id));
+                });
+            }
+
+            if (allDeletes.size > 0) {
+                const idsToDelete = Array.from(allDeletes).map(String);
                 state.list = state.list.filter(c => !idsToDelete.includes(String(c.id)));
                 state.list.forEach(category => {
                     category.items = category.items.filter(item => !idsToDelete.includes(String(item.id)));
@@ -278,7 +350,14 @@ export const packingSlice = createSlice({
     extraReducers: (builder) => {
         builder.addCase(initializeTrip.fulfilled, (state, action) => {
             if (action.payload && action.payload.packing) {
-                state.list = action.payload.packing.list;
+                // Migration: Remove recommendedBagType from loaded data
+                state.list = (action.payload.packing.list || []).map(cat => ({
+                    ...cat,
+                    items: (cat.items || []).map(item => {
+                        const { recommendedBagType, ...rest } = item;
+                        return rest;
+                    })
+                }));
                 state.bags = action.payload.packing.bags || [];
             }
         });
@@ -286,8 +365,9 @@ export const packingSlice = createSlice({
 });
 
 export const {
-    setPackingList,
+    setPackingList, setBags,
     addPackingCategory,
+
     addPackingItem,
     togglePackingItem,
     deletePackingItem,
@@ -299,4 +379,3 @@ export const {
 } = packingSlice.actions;
 
 export default packingSlice.reducer;
-

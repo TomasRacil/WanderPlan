@@ -111,6 +111,6 @@ describe('migrateLegacyState', () => {
 
         expect(item.text).toBe('Legacy Item');
         expect(item.quantity).toBe(5);
-        expect(item.recommendedBagType).toBe('Checked');
+        expect(item.recommendedBagType).toBeUndefined();
     });
 });

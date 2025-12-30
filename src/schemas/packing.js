@@ -17,8 +17,7 @@ export const getPackingSchema = (aiMode) => {
                             properties: {
                                 item: { type: "STRING" },
                                 quantity: { type: "INTEGER" },
-                                bagId: { type: "STRING", description: "Internal ID of the bag from context (e.g., 'bag-123'). Use ONLY if certain." },
-                                recommendedBagType: { type: "STRING", description: "e.g., 'Carry-on', 'Checked', 'Personal Item'" }
+                                bagId: { type: "STRING", description: "Internal ID of the bag from context (e.g., 'bag-123'). Use ONLY if certain." }
                             },
                             required: ["item"]
                         }
@@ -31,12 +30,13 @@ export const getPackingSchema = (aiMode) => {
     }
 
     if (aiMode === 'update' || aiMode === 'fill') {
-        schemas.updates = {
+        schemas.categoryUpdates = {
             type: "ARRAY",
+            description: "Use this to ADD NEW items to existing categories.",
             items: {
                 type: "OBJECT",
                 properties: {
-                    id: commonProperties.ids,
+                    categoryId: commonProperties.ids,
                     newItems: {
                         type: "ARRAY",
                         items: {
@@ -44,17 +44,39 @@ export const getPackingSchema = (aiMode) => {
                             properties: {
                                 item: { type: "STRING" },
                                 quantity: { type: "INTEGER" },
-                                bagId: { type: "STRING" },
-                                recommendedBagType: { type: "STRING" }
+                                bagId: { type: "STRING", description: "Internal ID of the bag from context (e.g., 'bag-123'). Use ONLY if certain." }
                             },
                             required: ["item"]
                         }
-                    },
-                    removeItems: { type: "ARRAY", items: { type: "STRING" } },
-                    attachmentIds: commonProperties.attachmentIds
+                    }
                 },
-                required: ["id"]
+                required: ["categoryId", "newItems"]
             }
+        };
+
+        schemas.itemUpdates = {
+            type: "ARRAY",
+            description: "Use this to MODIFY existing items (e.g. assign to bag, change quantity).",
+            items: {
+                type: "OBJECT",
+                properties: {
+                    itemId: { type: "STRING", description: "The distinct ID of the item to update." },
+                    updates: {
+                        type: "OBJECT",
+                        properties: {
+                            quantity: { type: "INTEGER" },
+                            bagId: { type: "STRING", description: "Internal ID of the bag from context (e.g., 'bag-123'). Use ONLY if certain." },
+                            text: { type: "STRING" }
+                        }
+                    }
+                },
+                required: ["itemId", "updates"]
+            }
+        };
+
+        schemas.removeItems = {
+            type: "ARRAY",
+            items: { type: "STRING", description: "IDs of items to remove." }
         };
     }
 

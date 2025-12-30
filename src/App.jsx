@@ -1,7 +1,7 @@
 import React from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
-  Settings, Plane, Home, Wallet, CheckSquare, Calendar, Map as MapIcon, Loader, Globe, ArrowDownCircle, RefreshCw, FileText
+  Settings, Plane, Home, Wallet, CheckSquare, Calendar, Map as MapIcon, Loader, Globe, ArrowDownCircle, RefreshCw, FileText, ChevronLeft
 } from 'lucide-react';
 import { useRegisterSW } from 'virtual:pwa-register/react'
 
@@ -10,10 +10,11 @@ import {
   setActiveTab, setShowSettings, setLanguage, clearQuotaError, clearAiError
 } from './store/uiSlice';
 import {
-  loadFullTrip, setApiKey, generateTrip, initializeTrip, setSelectedModel
+  loadFullTrip, setApiKey, generateTrip, initializeTrip, setSelectedModel, loadSelectedTrip
 } from './store/tripSlice';
 import { AVAILABLE_MODELS, logAvailableModels } from './services/gemini';
-import { set } from 'idb-keyval';
+import { storage } from './services/storage'; // Updated import
+import { exportTripToZip } from './utils/exportImport';
 import JSZip from 'jszip';
 import { Overview } from './components/Overview';
 import { PreTripTasks } from './components/PreTripTasks';
@@ -21,6 +22,7 @@ import { PackingList } from './components/PackingList';
 import { Itinerary } from './components/Itinerary';
 import { Budget } from './components/Budget';
 import { Map } from './components/Map';
+import { Dashboard } from './components/Dashboard'; // New Component
 import { LOCALES } from './i18n/locales';
 import { Button } from './components/common/Button';
 import { ReviewModal } from './components/common/ReviewModal';
@@ -37,6 +39,9 @@ function WanderPlanContent() {
   const { activeTab, showSettings, loading, language, quotaError, aiError, isInitialized } = useSelector(state => state.ui);
   const t = LOCALES[language];
 
+  // Router-like state
+  const [viewMode, setViewMode] = React.useState('dashboard'); // 'dashboard' | 'trip'
+
   // PWA Update
   const {
     needRefresh: [needRefresh, setNeedRefresh],
@@ -48,48 +53,85 @@ function WanderPlanContent() {
   // Local Nano Availability Check
   const [hasNano, setHasNano] = React.useState(false);
   React.useEffect(() => {
-    // Check if window.ai is available (Chrome Canary/Dev experimental)
     if (window.ai && window.ai.languageModel) {
       setHasNano(true);
     }
   }, []);
 
-
-  // Auto-save to localStorage on change (Initial load handled in tripSlice)
-
-  // Auto-save to IndexedDB on change
-  React.useEffect(() => {
-    if (!isInitialized) return;
-    const tripData = { tripDetails, preTripTasks, itinerary, expenses, packingList, bags, phrasebook, exchangeRates, language, selectedModel, distilledContext, documents };
-    set('wanderplan_current_trip', tripData).catch(err => console.error('Auto-save failed', err));
-  }, [tripDetails, preTripTasks, itinerary, expenses, packingList, bags, phrasebook, exchangeRates, language, isInitialized, selectedModel, distilledContext, documents]);
-
+  // Initialize
   React.useEffect(() => {
     dispatch(initializeTrip());
   }, [dispatch]);
 
+  // Auto-save specific trip to IndexedDB
+  React.useEffect(() => {
+    if (!isInitialized || viewMode !== 'trip') return;
+
+    // Safety check: ensure we have an ID
+    if (!tripDetails.id) return;
+
+    // Construct full state object matching the schema expected by migration/load
+    const tripData = {
+      trip: {
+        tripDetails, expenses, exchangeRates, apiKey, selectedModel, customPrompt: '', proposedChanges: null
+      },
+      resources: {
+        // Use 'preTripTasks' for legacy compatibility or 'tasks' for new schema?
+        // Migration expects 'tasks' in resources for new format, or 'preTripTasks' in root for old.
+        // Let's stick to the slice structure: resources.tasks = preTripTasks
+        tasks: preTripTasks,
+        documents,
+        distilledContext,
+        phrasebook
+      },
+      itinerary: { items: itinerary },
+      packing: {
+        list: packingList,
+        bags: bags || [] // Ensure bags are included
+      },
+      ui: { language }
+    };
+
+    const save = async () => {
+      try {
+        console.log("Auto-saving trip...", tripDetails.id, "Tasks:", preTripTasks?.length, "Bags:", bags?.length);
+        await storage.saveTrip(tripData);
+      } catch (err) {
+        console.error('Auto-save failed', err);
+      }
+    };
+
+    // Debounce slightly or just run
+    const timer = setTimeout(save, 1000);
+    return () => clearTimeout(timer);
+
+  }, [tripDetails, preTripTasks, itinerary, expenses, packingList, bags, phrasebook, exchangeRates, language, isInitialized, selectedModel, distilledContext, documents, viewMode]);
+
+
   const handleSaveTrip = async () => {
+    // Should match the structure above for consistency, or use the exact same object construction
     const tripData = {
       version: 5,
       timestamp: new Date().toISOString(),
-      tripDetails,
-      preTripTasks,
-      itinerary,
-      expenses,
-      packingList,
-      phrasebook,
-      exchangeRates,
-      language,
-      selectedModel,
-      distilledContext,
-      documents
+      trip: {
+        tripDetails, expenses, exchangeRates, apiKey, selectedModel, customPrompt: '', proposedChanges: null
+      },
+      resources: {
+        tasks: preTripTasks,
+        documents,
+        distilledContext,
+        phrasebook
+      },
+      itinerary: { items: itinerary },
+      packing: {
+        list: packingList,
+        bags: bags || []
+      },
+      ui: { language }
     };
 
     try {
-      const zip = new JSZip();
-      zip.file("trip_data.json", JSON.stringify(tripData, null, 2));
-
-      const content = await zip.generateAsync({ type: "blob" });
+      const content = await exportTripToZip(tripData);
       const url = URL.createObjectURL(content);
       const link = document.createElement('a');
       link.href = url;
@@ -104,40 +146,12 @@ function WanderPlanContent() {
     }
   };
 
-  const handleLoadTrip = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  const handleTripSelect = (id) => {
+    setViewMode('trip');
+  };
 
-    try {
-      if (file.name.endsWith('.zip')) {
-        const zip = new JSZip();
-        const unzipped = await zip.loadAsync(file);
-        const jsonFile = unzipped.file("trip_data.json");
-        if (jsonFile) {
-          const content = await jsonFile.async("string");
-          dispatch(loadFullTrip(JSON.parse(content)));
-          alert("Trip archive loaded successfully!");
-        } else {
-          alert("Invalid archive: trip_data.json not found.");
-        }
-      } else {
-        // Fallback for legacy JSON support
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          try {
-            dispatch(loadFullTrip(JSON.parse(event.target.result)));
-            alert("Trip loaded successfully!");
-          } catch (error) {
-            alert("Failed to load trip file.");
-          }
-        };
-        reader.readAsText(file);
-      }
-    } catch (error) {
-      console.error("Failed to load archive", error);
-      alert("Failed to load trip archive.");
-    }
-    e.target.value = '';
+  const handleBackToDashboard = () => {
+    setViewMode('dashboard');
   };
 
   const navItems = getNavItems(t);
@@ -147,12 +161,23 @@ function WanderPlanContent() {
       <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 shrink-0 h-16">
         <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Globe className="text-indigo-600" />
-            <span className="font-bold text-xl bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">WanderPlan</span>
+            {viewMode === 'trip' && (
+              <button
+                onClick={handleBackToDashboard}
+                className="p-1 hover:bg-slate-100 rounded-full mr-1 transition-colors text-slate-500"
+                title={t.dashboard || "Dashboard"} // Use localized fallback
+              >
+                <ChevronLeft size={24} />
+              </button>
+            )}
+            <Globe className="text-indigo-600 hidden sm:block" />
+            <span className="font-bold text-xl bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent truncate max-w-[150px] sm:max-w-none">
+              {viewMode === 'trip' ? (tripDetails.destination || 'WanderPlan') : 'WanderPlan'}
+            </span>
           </div>
 
           <nav className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
-            {navItems.map((item) => (
+            {viewMode === 'trip' && navItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => dispatch(setActiveTab(item.id))}
@@ -164,9 +189,7 @@ function WanderPlanContent() {
             ))}
           </nav>
 
-          <div className="flex items-center gap-4">
-            {/* PWA Update Toast (Desktop/Mobile) - minimal indicator or rely on settings? 
-                 Let's add a small indicator if update is ready */}
+          <div className="flex items-center gap-2 sm:gap-4">
             {needRefresh && (
               <button onClick={() => updateServiceWorker(true)} className="flex items-center gap-1 bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full text-xs font-bold animate-pulse hover:bg-indigo-200">
                 <ArrowDownCircle size={14} /> <span className="hidden sm:inline">{t.update}</span>
@@ -184,19 +207,23 @@ function WanderPlanContent() {
         </div>
       </header>
 
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6 overflow-auto flex flex-col pb-24 md:pb-6">
-        {activeTab === 'overview' && (
-          <Overview
-            onSave={handleSaveTrip}
-            onLoad={handleLoadTrip}
-          />
-        )}
-        {activeTab === 'budget' && <Budget />}
-        {activeTab === 'tasks' && <PreTripTasks />}
-        {activeTab === 'packing' && <PackingList />}
-        {activeTab === 'itinerary' && <Itinerary />}
-        {activeTab === 'map' && <Map />}
-      </main>
+      {viewMode === 'dashboard' ? (
+        <Dashboard onTripSelect={handleTripSelect} />
+      ) : (
+        <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6 overflow-auto flex flex-col pb-24 md:pb-6">
+          {activeTab === 'overview' && (
+            <Overview
+              onSave={handleSaveTrip}
+              onLoad={(e) => alert("Please import trips from the Dashboard.")}
+            />
+          )}
+          {activeTab === 'budget' && <Budget />}
+          {activeTab === 'tasks' && <PreTripTasks />}
+          {activeTab === 'packing' && <PackingList />}
+          {activeTab === 'itinerary' && <Itinerary />}
+          {activeTab === 'map' && <Map />}
+        </main>
+      )}
 
       {/* Review Modal for AI Changes */}
       <ReviewModal />

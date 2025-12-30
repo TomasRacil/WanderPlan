@@ -6,6 +6,7 @@ import tripReducer from './store/tripSlice';
 import itineraryReducer from './store/itinerarySlice';
 import packingReducer from './store/packingSlice';
 import resourceReducer from './store/resourceSlice';
+import tripsListReducer from './store/tripsListSlice';
 import uiReducer from './store/uiSlice';
 import App from './App';
 import { describe, it, expect, vi } from 'vitest';
@@ -23,6 +24,7 @@ vi.mock('idb-keyval', () => ({
 const createTestStore = () => configureStore({
     reducer: {
         trip: tripReducer,
+        tripsList: tripsListReducer,
         itinerary: itineraryReducer,
         packing: packingReducer,
         resources: resourceReducer,
@@ -39,6 +41,6 @@ describe('App Integration', () => {
         );
 
         expect(screen.getByText(/WanderPlan/i)).toBeInTheDocument();
-        expect(screen.getByText(/Trip Settings/i)).toBeInTheDocument();
+        expect(screen.getByText(/Your Trips/i)).toBeInTheDocument();
     });
 });

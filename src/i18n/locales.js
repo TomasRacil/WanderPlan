@@ -271,7 +271,21 @@ export const LOCALES = {
         updateTraveler: "Update Traveler",
         travelerCount: "Travelers",
         owner: "Owner",
-        noTravelers: "No travelers defined yet."
+        noTravelers: "No travelers defined yet.",
+        // Dashboard
+        yourTrips: "Your Trips",
+        dashboardSubtitle: "Manage and organize your travel plans",
+        noTrips: "No trips yet",
+        startPlanning: "Start Planning",
+        importTrip: "Import Trip",
+        exportTrip: "Export Trip",
+        exportTrip: "Export Trip",
+        deleteTripTitle: "Delete Trip",
+        deleteTripConfirm: "Are you sure you want to delete this trip?",
+        loadingTrips: "Loading trips...",
+        confirmOverwriteTitle: "Trip Already Exists",
+        confirmOverwriteMsg: "A trip with this ID already exists. Do you want to overwrite it? This cannot be undone.",
+        overwrite: "Overwrite"
     },
     cs: {
         planMyTrip: "Naplánovat cestu",
@@ -545,6 +559,20 @@ export const LOCALES = {
         updateTraveler: "Upravit cestujícího",
         travelerCount: "Počet cestujících",
         owner: "Majitel",
-        noTravelers: "Zatím žádní cestující."
+        noTravelers: "Zatím žádní cestující.",
+        // Dashboard
+        yourTrips: "Vaše cesty",
+        dashboardSubtitle: "Spravujte a organizujte své cestovní plány",
+        noTrips: "Zatím žádné cesty",
+        startPlanning: "Začít plánovat",
+        importTrip: "Importovat cestu",
+        exportTrip: "Exportovat cestu",
+        exportTrip: "Exportovat cestu",
+        deleteTripTitle: "Smazat cestu",
+        deleteTripConfirm: "Opravdu chcete smazat tuto cestu?",
+        loadingTrips: "Načítám cesty...",
+        confirmOverwriteTitle: "Cesta již existuje",
+        confirmOverwriteMsg: "Cesta s tímto ID již existuje. Chcete ji přepsat? Tuto akci nelze vrátit zpět.",
+        overwrite: "Přepsat"
     }
 };

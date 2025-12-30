@@ -16,14 +16,12 @@ const TASK_SPECIFIC_INSTRUCTIONS = (tripDetails, aiMode, targetArea) => {
 CRITICAL PACKING INSTRUCTIONS:
 - **Smart Baggage**: Meticulously use the 'bags' definitions provided in the context.
     - Assign every packing item to the most appropriate bag. 
-    - If you are CERTAIN about a specific bag from the context, provide its \`bagId\` directly.
-    - Otherwise, provide its \`recommendedBagType\` (e.g. 'Carry-on', 'Checked').
     - STRICTLY respect the size and nature of the bag (e.g., liquids/electronics in Carry-on, heavy clothes in Checked).
 - Use specific bag names provided in context (e.g., "Main Suitcase", "Backpack") when referring to types.
 `,
-            add: "Suggest NEW packing items based on your own intelligence, the trip destination, weather, and ANY relevant details found in context and attachments. Do not duplicate existing items.",
-            update: "UPDATE existing packing items. Meticulously scan attachments and context to refine details (quantities, specific bag assignments).",
-            fill: "Identify gaps in the packing list. Suggest standard missing items AND refine existing items to ensure a complete list.",
+            add: "Suggest NEW packing items based on your own intelligence, the trip destination, weather, and ANY relevant details found in context and attachments. Do not duplicate existing items. CRITICAL: Check 'travelerId' on bags! Distribute items logically to their owners' bags by assinging bag 'id' to 'bagId' for each item. Do NOT put everything in one bag. Balance the load.",
+            update: "UPDATE existing packing items using 'itemUpdates' (e.g. assign bags, change quantity). To ADD new items to specific categories, use 'categoryUpdates'. CRITICAL: 1. Check 'travelerId' on bags! Distribute items logically to their owners' bags. Balance the load. 2. NEVER include an 'itemId' in 'removeItems' if you are updating it in 'itemUpdates'. Only use 'removeItems' for items that should be PERMANENTLY DELETED from the trip. 3. IF YOU NEED TO SPLIT AN ITEM (e.g. 5 T-shirts -> 3 in Bag A, 2 in Bag B): Update the original item's quantity to 3 and assign to Bag A (via itemUpdates). Add a NEW item 'T-shirts' with quantity 2 assigned to Bag B (via categoryUpdates).",
+            fill: "Identify gaps in the packing list. Suggest missing items using 'categoryUpdates'. ALSO refine existing items using 'itemUpdates' (assign bags, fix quantities). CRITICAL: 1. Check 'travelerId' on bags! Distribute items logically. 2. NEVER include an 'itemId' in 'removeItems' if you are updating it. 3. IF YOU NEED TO SPLIT AN ITEM: Update quantity of original (itemUpdates) + Add new split portion (categoryUpdates).",
             dedupe: "Identify redundant packing items based on item name and function. Ignore bag assignments for deduplication purposes."
         },
         itinerary: {

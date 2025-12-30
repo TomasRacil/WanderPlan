@@ -21,7 +21,8 @@ vi.mock('./itinerarySlice', () => ({
 }));
 
 vi.mock('./packingSlice', () => ({
-    setPackingList: vi.fn()
+    setPackingList: vi.fn(),
+    setBags: vi.fn()
 }));
 
 vi.mock('./resourceSlice', () => ({
