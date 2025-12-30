@@ -48,7 +48,7 @@ const ResponseSchema = z.object({
     updates: z.array(z.object({
         id: z.string(),
         fields: z.object({}).catchall(z.any()).optional(),
-        newItems: z.array(z.string()).optional(),
+        newItems: z.array(z.any()).optional(),
         removeItems: z.array(z.string()).optional()
     })).optional(),
     deletes: z.union([z.array(z.string()), z.array(z.object({ id: z.string() }))]).optional(),
@@ -72,6 +72,7 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
         tasks: preTripTasks || [],
         packing: packingList || [],
         bags: bags || [],
+        travelers: tripDetails.travelerProfiles || [],
         distilledAttachments: summarizedDocs.map(item => ({ id: item.id, summary: item.doc.summary })),
         preferredLanguage: language
     });
@@ -97,7 +98,7 @@ export const generateTripContent = async (apiKey, tripDetails, customPrompt, iti
         }
     });
 
-    const finalSystemInstruction = getSystemInstructions(new Date().toISOString().split('T')[0], tripDetails, rawDataNeededIds.length > 0, language, targetArea);
+    const finalSystemInstruction = getSystemInstructions(new Date().toISOString().split('T')[0], tripDetails, rawDataNeededIds.length > 0, language, targetArea, aiMode);
     const prompt = constructUserPrompt(context, customPrompt, aiMode, targetArea);
 
     // --- Schema Construction ---

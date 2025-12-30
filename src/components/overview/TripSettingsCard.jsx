@@ -1,17 +1,20 @@
 import { useState } from 'react';
-import { Globe, Luggage } from 'lucide-react';
+import { Globe, Luggage, User } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Card } from '../common/Card';
 import { SearchableSelect } from '../common/SearchableSelect';
 import { Button } from '../common/Button';
 import { updateTripDetails } from '../../store/tripSlice';
-import { BagManagerModal } from '../packing/BagManagerModal'; // Import new modal
+import { BagManagerModal } from '../packing/BagManagerModal';
+import { TravelerManagerModal } from './TravelerManagerModal'; // New Import
 import { ALL_CURRENCIES } from '../../data/currencies';
 
 export const TripSettingsCard = ({ tripDetails, t }) => {
     const dispatch = useDispatch();
     const [isBagModalOpen, setIsBagModalOpen] = useState(false);
+    const [isTravelerModalOpen, setIsTravelerModalOpen] = useState(false);
     const bags = useSelector(state => state.packing.bags || []);
+    const travelerProfiles = tripDetails.travelerProfiles || [];
 
     return (
         <Card className="p-6 border-slate-200 bg-white/50 backdrop-blur-sm !overflow-visible shadow-indigo-100/50">
@@ -73,15 +76,19 @@ export const TripSettingsCard = ({ tripDetails, t }) => {
                 </div>
 
                 <div className="space-y-1.5">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">{t.travelers || "Travelers"}</label>
-                    <div className="relative group">
-                        <input
-                            type="number"
-                            min="1"
-                            value={tripDetails.travelers || 1}
-                            onChange={(e) => dispatch(updateTripDetails({ travelers: parseInt(e.target.value) || 1 }))}
-                            className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none font-bold text-slate-700 transition-all shadow-sm hover:border-slate-300"
-                        />
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">{t.travelerCount}</label>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="secondary"
+                            onClick={() => setIsTravelerModalOpen(true)}
+                            className="bg-white border-slate-200 text-slate-700 h-10 px-4 text-xs w-full justify-start font-bold"
+                        >
+                            <User size={14} className="mr-2 text-indigo-500" />
+                            {travelerProfiles.length > 0
+                                ? travelerProfiles.map(p => p.nickname).join(', ')
+                                : t.manageTravelers
+                            }
+                        </Button>
                     </div>
                 </div>
             </div>
@@ -103,6 +110,12 @@ export const TripSettingsCard = ({ tripDetails, t }) => {
             <BagManagerModal
                 isOpen={isBagModalOpen}
                 onClose={() => setIsBagModalOpen(false)}
+                t={t}
+            />
+
+            <TravelerManagerModal
+                isOpen={isTravelerModalOpen}
+                onClose={() => setIsTravelerModalOpen(false)}
                 t={t}
             />
         </Card>

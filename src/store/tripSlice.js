@@ -32,7 +32,8 @@ const initialState = {
         exchangeRate: 1,
         coverImage: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1200&q=80',
         lastUsedCurrency: 'USD',
-        travelers: 1
+        travelers: 1,
+        travelerProfiles: []
     },
     expenses: [],
     exchangeRates: {},
@@ -90,7 +91,24 @@ export const tripSlice = createSlice({
                     if (index > -1) list[index].ignored = !list[index].ignored;
                 }
             }
-        }
+        },
+        addTraveler: (state, action) => {
+            if (!state.tripDetails.travelerProfiles) state.tripDetails.travelerProfiles = [];
+            state.tripDetails.travelerProfiles.push(action.payload);
+            state.tripDetails.travelers = state.tripDetails.travelerProfiles.length;
+        },
+        updateTraveler: (state, action) => {
+            const { id, ...updates } = action.payload;
+            const index = state.tripDetails.travelerProfiles.findIndex(p => p.id === id);
+            if (index > -1) {
+                state.tripDetails.travelerProfiles[index] = { ...state.tripDetails.travelerProfiles[index], ...updates };
+            }
+        },
+        deleteTraveler: (state, action) => {
+            const id = action.payload;
+            state.tripDetails.travelerProfiles = state.tripDetails.travelerProfiles.filter(p => p.id !== id);
+            state.tripDetails.travelers = state.tripDetails.travelerProfiles.length;
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -143,7 +161,8 @@ export const tripSlice = createSlice({
 export const {
     updateTripDetails, setExpenses, setApiKey, setSelectedModel,
     setCustomPrompt, updateExchangeRate, setExchangeRates,
-    discardProposedChanges, toggleProposedChange
+    discardProposedChanges, toggleProposedChange,
+    addTraveler, updateTraveler, deleteTraveler
 } = tripSlice.actions;
 
 export default tripSlice.reducer;

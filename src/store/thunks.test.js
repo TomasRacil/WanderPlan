@@ -55,7 +55,7 @@ describe('thunks.js', () => {
 
             loadFullTrip(legacyData)(dispatch);
 
-            expect(updateTripDetails).toHaveBeenCalledWith(legacyData.tripDetails);
+            expect(updateTripDetails).toHaveBeenCalledWith(expect.objectContaining(legacyData.tripDetails));
             expect(setItinerary).toHaveBeenCalled();
             expect(setPackingList).toHaveBeenCalled();
             expect(setTasks).toHaveBeenCalled();
@@ -79,7 +79,7 @@ describe('thunks.js', () => {
 
             loadFullTrip(migratedData)(dispatch);
 
-            expect(updateTripDetails).toHaveBeenCalledWith(migratedData.trip.tripDetails);
+            expect(updateTripDetails).toHaveBeenCalledWith(expect.objectContaining(migratedData.trip.tripDetails));
             expect(setPhrasebook).toHaveBeenCalledWith(migratedData.resources.phrasebook);
             expect(setLanguage).toHaveBeenCalledWith('ja');
         });

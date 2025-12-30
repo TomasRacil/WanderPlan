@@ -35,14 +35,20 @@
     *   **[NEW] Specialized Extraction**: Forceful instructions and schema enforcements ensure attachment IDs are linked to items created from them.
     *   **Context Aware**: Analyzes existing trip data (dates, style, current items) to provide relevant suggestions.
     *   **Garbage Collection**: Automatically cleans up AI-extracted context when attachments are deleted to keep memory fresh.
+*   **Personal Traveler Profiles 🧑‍🤝‍🧑**:
+    *   **Detailed Profiles**: Add travel companions with **Nickname, Age, and Sex**.
+    *   **Context-Aware Suggestions**: AI automatically tailors recommendations based on traveler demographics (e.g., specialized gear for different age groups).
+    *   **Ownership Tracking**: Explicitly link bags to individual travelers.
 *   **Smart Checklists**:
     *   **Pre-Trip Tasks**: Manage visas, vaccinations, and documents.
     *   **Packing List**: Categorized packing essentials.
     *   **[NEW] Smart Baggage Management 🧳**:
-        *   Define custom baggage (Checked Bags, Carry-ons, Personal Items) with weight limits and quantities.
+        *   Define custom baggage (Checked Bags, Carry-ons, Personal Items) with weight limits.
+        *   **Ownership Assignment**: Assign each bag to a specific traveler for shared oversight.
+        *   **Hierarchical Grouping**: Toggle "By Bag" view to see a clear **Owner -> Bag -> Items** breakdown.
+        *   **Global Display Format**: Bags are identified as `Owner - Bag Name` across the entire application.
         *   **AI-Smart Sorting**: AI automatically assigns items to appropriate bags (e.g., liquids in checked luggage, electronics in carry-ons).
-        *   **Dynamic Badging**: Items display their assigned bag or AI-suggested bag type (e.g., "Checked (?)").
-    *   **[NEW] List Management**: Auto-sort completed items to bottom, "Clear List" functionality, and AI deduplication.
+        *   **Dynamic Badging**: Items display their assigned bag or AI-suggested bag type.
 *   **Data Persistence**:
     *   **Save/Load**: Export your entire trip plan to a JSON file or **[NEW] ZIP Archive** (including attachments) and load it back anytime.
     *   **IndexedDB**: Migrated storage layer to handle large file attachments (images/PDFs) without size limits.

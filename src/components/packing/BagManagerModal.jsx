@@ -9,17 +9,19 @@ import { generateId } from '../../utils/idGenerator';
 export const BagManagerModal = ({ isOpen, onClose, t }) => {
     const dispatch = useDispatch();
     const bags = useSelector(state => state.packing.bags || []);
+    const travelers = useSelector(state => state.trip.tripDetails.travelerProfiles || []);
     const [editingId, setEditingId] = useState(null);
     const [formData, setFormData] = useState({
         name: '',
         type: 'carry-on',
         weightLimit: '',
         weightUnit: 'kg',
-        quantity: 1
+        quantity: 1,
+        travelerId: ''
     });
 
     const resetForm = () => {
-        setFormData({ name: '', type: 'carry-on', weightLimit: '', weightUnit: 'kg', quantity: 1 });
+        setFormData({ name: '', type: 'carry-on', weightLimit: '', weightUnit: 'kg', quantity: 1, travelerId: '' });
         setEditingId(null);
     };
 
@@ -29,7 +31,8 @@ export const BagManagerModal = ({ isOpen, onClose, t }) => {
             type: bag.type || 'carry-on',
             weightLimit: bag.weightLimit || '',
             weightUnit: bag.weightUnit || 'kg',
-            quantity: bag.quantity || 1
+            quantity: 1,
+            travelerId: bag.travelerId || ''
         });
         setEditingId(bag.id);
     };
@@ -89,18 +92,20 @@ export const BagManagerModal = ({ isOpen, onClose, t }) => {
                                 <option value="personal">{t.personalItem}</option>
                             </select>
                         </div>
-                        <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                                {t.bagQuantity}
-                            </label>
-                            <input
-                                type="number"
-                                min="1"
-                                value={formData.quantity}
-                                onChange={e => setFormData({ ...formData, quantity: e.target.value })}
-                                className="w-full p-2 border border-slate-200 rounded-lg text-sm"
-                            />
-                        </div>
+                        {!editingId && (
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                    {t.bagQuantity}
+                                </label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={formData.quantity}
+                                    onChange={e => setFormData({ ...formData, quantity: e.target.value })}
+                                    className="w-full p-2 border border-slate-200 rounded-lg text-sm"
+                                />
+                            </div>
+                        )}
                         <div className="flex gap-2">
                             <div className="flex-1">
                                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
@@ -127,6 +132,21 @@ export const BagManagerModal = ({ isOpen, onClose, t }) => {
                                     <option value="lb">lb</option>
                                 </select>
                             </div>
+                        </div>
+                        <div className="col-span-2">
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                {t.owner}
+                            </label>
+                            <select
+                                value={formData.travelerId}
+                                onChange={e => setFormData({ ...formData, travelerId: e.target.value })}
+                                className="w-full p-2 border border-slate-200 rounded-lg text-sm"
+                            >
+                                <option value="">{t.unassignedItems}</option>
+                                {travelers.map(trv => (
+                                    <option key={trv.id} value={trv.id}>{trv.nickname}</option>
+                                ))}
+                            </select>
                         </div>
                     </div>
                     <div className="flex justify-end gap-2 pt-2">
@@ -155,17 +175,35 @@ export const BagManagerModal = ({ isOpen, onClose, t }) => {
                                     <Luggage size={16} />
                                 </div>
                                 <div>
-                                    <div className="font-bold text-slate-700 text-sm">{bag.name} <span className="text-slate-400 font-normal">x{bag.quantity}</span></div>
+                                    <div className="font-bold text-slate-700 text-sm">
+                                        {bag.travelerId && travelers.find(p => p.id === bag.travelerId)
+                                            ? `${travelers.find(p => p.id === bag.travelerId).nickname} - ${bag.name}`
+                                            : bag.name
+                                        }
+                                    </div>
                                     <div className="text-[10px] text-slate-500 font-medium">
                                         {bag.weightLimit > 0 ? `${bag.weightLimit} ${bag.weightUnit}` : t.weightLimit} • {bag.type === 'checked' ? t.checkedBag : (bag.type === 'personal' ? t.personalItem : t.carryOn)}
+                                        {bag.travelerId && (
+                                            <span className="ml-1 text-indigo-500">
+                                                • {travelers.find(p => p.id === bag.travelerId)?.nickname || t.owner}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             </div>
                             <div className="flex gap-1">
-                                <button onClick={() => handleEdit(bag)} className="p-1.5 text-slate-400 hover:text-indigo-600 rounded hover:bg-slate-50">
-                                    <span className="text-xs font-bold">Edit</span>
+                                <button
+                                    type="button"
+                                    onClick={() => handleEdit(bag)}
+                                    className="p-1.5 text-slate-400 hover:text-indigo-600 rounded hover:bg-slate-50 transition-colors"
+                                >
+                                    <span className="text-xs font-bold">{t.edit}</span>
                                 </button>
-                                <button onClick={() => handleDelete(bag.id)} className="p-1.5 text-slate-400 hover:text-red-500 rounded hover:bg-slate-50">
+                                <button
+                                    type="button"
+                                    onClick={() => handleDelete(bag.id)}
+                                    className="p-1.5 text-slate-400 hover:text-red-500 rounded hover:bg-slate-50 transition-colors"
+                                >
                                     <Trash2 size={14} />
                                 </button>
                             </div>

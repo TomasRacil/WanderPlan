@@ -13,6 +13,8 @@ export const ReviewModal = () => {
     const itinerary = useSelector(state => state.itinerary.items);
     const preTripTasks = useSelector(state => state.resources.tasks);
     const packingList = useSelector(state => state.packing.list);
+    const bags = useSelector(state => state.packing.bags || []);
+    const documents = useSelector(state => state.resources.documents || {});
     const language = useSelector(state => state.ui.language);
     const t = LOCALES[language || 'en'];
 
@@ -40,6 +42,42 @@ export const ReviewModal = () => {
         const item = findOriginalItem(id);
         if (item) return item.title || item.text || item.category || `Item ${id}`;
         return `Item ${id}`;
+    };
+
+    const getBagLabel = (bagId, recommendedType) => {
+        if (bagId) {
+            const bag = bags.find(b => String(b.id) === String(bagId));
+            if (bag) return bag.name;
+        }
+        return recommendedType || bagId;
+    };
+
+    const getAttachmentLabel = (docId) => {
+        const doc = documents[String(docId)];
+        return doc ? (doc.name || doc.title || `Doc ${docId}`) : `Doc ${docId}`;
+    };
+
+    const formatFieldValue = (key, val) => {
+        if (val === null || val === undefined) return '---';
+
+        // Handle Bag IDs
+        if (key === 'bagId') {
+            return getBagLabel(val);
+        }
+
+        // Handle Attachment IDs
+        if (key === 'attachmentIds' && Array.isArray(val)) {
+            return val.map(id => getAttachmentLabel(id)).join(', ');
+        }
+
+        if (key === 'attachmentId') {
+            return getAttachmentLabel(val);
+        }
+
+        // Handle Booleans
+        if (typeof val === 'boolean') return val ? '✅' : '❌';
+
+        return String(val);
     };
 
     const handleToggle = (type, id) => {
@@ -77,14 +115,28 @@ export const ReviewModal = () => {
                                         {targetArea === 'packing' && (item.items && Array.isArray(item.items)) && (
                                             <div className="mt-1 flex flex-wrap gap-1">
                                                 {item.items.map((i, k) => {
-                                                    const text = typeof i === 'string' ? i : (i.item || i.text);
-                                                    const qty = typeof i === 'object' && i.quantity > 1 ? ` x${i.quantity}` : '';
+                                                    const itemData = typeof i === 'string' ? { item: i } : i;
+                                                    const text = itemData.item || itemData.text;
+                                                    const qty = itemData.quantity > 1 ? ` x${itemData.quantity}` : '';
+                                                    const bagTag = getBagLabel(itemData.bagId, itemData.recommendedBagType);
+
                                                     return (
-                                                        <span key={k} className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px]">
-                                                            {text}{qty}
+                                                        <span key={k} className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] flex items-center gap-1">
+                                                            <span className="font-medium text-slate-700">{text}</span>
+                                                            {qty && <span className="text-indigo-600 font-bold">{qty}</span>}
+                                                            {bagTag && <span className="text-[9px] bg-indigo-100 text-indigo-700 px-1 rounded">💼 {bagTag}</span>}
                                                         </span>
                                                     );
                                                 })}
+                                            </div>
+                                        )}
+                                        {item.attachmentIds && item.attachmentIds.length > 0 && (
+                                            <div className="mt-1 flex flex-wrap gap-1">
+                                                {item.attachmentIds.map(aid => (
+                                                    <span key={aid} className="text-[9px] text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 flex items-center gap-1">
+                                                        📎 {getAttachmentLabel(aid)}
+                                                    </span>
+                                                ))}
                                             </div>
                                         )}
                                     </div>
@@ -119,22 +171,42 @@ export const ReviewModal = () => {
                                     {upd.fields && Object.entries(upd.fields).map(([key, val]) => {
                                         const originalItem = findOriginalItem(upd.id);
                                         const oldVal = originalItem ? originalItem[key] : null;
+
+                                        const formattedOld = formatFieldValue(key, oldVal);
+                                        const formattedNew = formatFieldValue(key, val);
+
                                         return (
                                             <div key={key} className="flex flex-col gap-1 py-1 border-b border-dashed border-slate-100 last:border-0">
                                                 <span className="text-slate-400 text-[10px] font-bold uppercase">{key}</span>
                                                 <div className="flex items-center gap-2 text-xs">
                                                     {oldVal !== undefined && oldVal !== null && (
-                                                        <span className="text-slate-400 line-through decoration-slate-300 decoration-2">{String(oldVal)}</span>
+                                                        <span className="text-slate-400 line-through decoration-slate-300 decoration-2">{formattedOld}</span>
                                                     )}
                                                     {oldVal !== undefined && oldVal !== null && <span className="text-slate-300">→</span>}
-                                                    <span className="font-bold text-blue-700">{String(val)}</span>
+                                                    <span className="font-bold text-blue-700">{formattedNew}</span>
                                                 </div>
                                             </div>
                                         );
                                     })}
                                     {upd.newItems && (
-                                        <div className="text-[11px] mt-1">
-                                            <span className="text-emerald-600 font-bold">+ Add:</span> {upd.newItems.join(', ')}
+                                        <div className="text-[11px] mt-1 space-y-1">
+                                            <div className="text-emerald-600 font-bold mb-0.5">+ Add:</div>
+                                            <div className="flex flex-wrap gap-1">
+                                                {upd.newItems.map((ni, nidx) => {
+                                                    const itemData = typeof ni === 'string' ? { item: ni } : ni;
+                                                    const text = itemData.item || itemData.text;
+                                                    const qty = itemData.quantity > 1 ? ` x${itemData.quantity}` : '';
+                                                    const bagTag = getBagLabel(itemData.bagId, itemData.recommendedBagType);
+
+                                                    return (
+                                                        <span key={nidx} className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded text-[10px] flex items-center gap-1">
+                                                            <span>{text}</span>
+                                                            {qty && <span className="font-bold">{qty}</span>}
+                                                            {bagTag && <span className="text-[9px] bg-emerald-100 px-1 rounded opacity-80">💼 {bagTag}</span>}
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
                                     )}
                                     {upd.removeItems && (

@@ -1,76 +1,149 @@
-export const getSystemInstructions = (date, tripDetails, hasAttachments, language, targetArea = 'all') => {
-    let prompt = `
-    You are an expert travel assistant for the app "WanderPlan".
-    Your goal is to modify the users trip based on their specific request and available context.
-    
-    CRITICAL INSTRUCTIONS:
-    1.  **Language**: You MUST generate all user-visible text (titles, text, categories, notes, change summaries) in the preferred language: ${language}.
-    2.  **Change Summary**: You MUST provide a brief \`changeSummary\` string explaining your changes and technical logic.
-    3.  **Strict JSON**: Output valid JSON only. NO markdown blocks, NO filler text outside the JSON.
-    4.  **Dates & Time**: 
-        - Current date: ${date}.
-        - Always provide dates in YYYY-MM-DD format.
-        - Prioritize filling all schema fields (like \`dueDate\` for tasks or \`startTime\` for events) if the information can be found in context or reasonably inferred.
-    5.  **Context**: 
-        - Current Trip: ${tripDetails.destination} (${tripDetails.startDate} to ${tripDetails.endDate}).
-        - Origin: ${tripDetails.origin || 'Unknown'}.
-    6.  **Directness**: Be concise but comprehensive. Use ALL provided context.
-    7.  **Attachment Linking (MANDATORY)**: If an item is created or updated based on a document (summary or raw), you MUST include its ID in the 'attachmentIds' array. This is NOT optional.
-        - For 'distilledAttachments' (context), use its 'id'.
-        - For raw files (prompt), use the ID in "[Attachment ID: <id>]".
-    8.  **Comprehensive Coverage**: Meticulously check EVERY document in the context and raw files. Ensure no information from any attachment is missed.
-    `;
+const BASE_INSTRUCTIONS = (date, destination, startDate, endDate, origin, language, travelers) => `
+You are an expert travel assistant for the app "WanderPlan".
+Preferred language: ${language}.
+Current Trip: ${destination} (${startDate} to ${endDate}).
+Travelers: ${travelers || 'Unknown'}.
+Current date: ${date}.
 
-    if (targetArea === 'packing' || targetArea === 'all') {
-        prompt += `
-    9.  **Smart Baggage**: If 'bags' context is provided, you MUST:
-        - Assign every packing item to the most appropriate bag using the \`recommendedBagType\` field.
-        - STRICTLY respect the size and nature of the bag (e.g., liquids/electronics in Carry-on, heavy clothes in Checked).
-        - Use the specific bag names provided in the context (e.g., "Main Suitcase", "Backpack") for \`recommendedBagType\`.
-        `;
+URGENT SAFETY WARNING:
+Users rely HEAVILY on the information you provide. Any missing or incorrect data (especially regarding dates, times, locations, or baggage rules) can lead to significant trip disruptions, financial loss, or even HEALTH AND SAFETY HAZARDS. Accuracy is your absolute highest priority.
+`;
+
+const TASK_SPECIFIC_INSTRUCTIONS = (tripDetails, aiMode, targetArea) => {
+    const sections = {
+        packing: {
+            critical: `
+CRITICAL PACKING INSTRUCTIONS:
+- **Smart Baggage**: Meticulously use the 'bags' definitions provided in the context.
+    - Assign every packing item to the most appropriate bag. 
+    - If you are CERTAIN about a specific bag from the context, provide its \`bagId\` directly.
+    - Otherwise, provide its \`recommendedBagType\` (e.g. 'Carry-on', 'Checked').
+    - STRICTLY respect the size and nature of the bag (e.g., liquids/electronics in Carry-on, heavy clothes in Checked).
+- Use specific bag names provided in context (e.g., "Main Suitcase", "Backpack") when referring to types.
+`,
+            add: "Suggest NEW packing items based on your own intelligence, the trip destination, weather, and ANY relevant details found in context and attachments. Do not duplicate existing items.",
+            update: "UPDATE existing packing items. Meticulously scan attachments and context to refine details (quantities, specific bag assignments).",
+            fill: "Identify gaps in the packing list. Suggest standard missing items AND refine existing items to ensure a complete list.",
+            dedupe: "Identify redundant packing items based on item name and function. Ignore bag assignments for deduplication purposes."
+        },
+        itinerary: {
+            critical: `
+CRITICAL ITINERARY INSTRUCTIONS:
+- Ensure logical logistics flow (e.g., arrival before checking in).
+`,
+            add: "Create NEW events. Focus on filling the timeline with high-precision data from attachments/context and logical travel flow. Use intelligent suggestions to populate empty days. If an item is created from a document, you MUST include its ID in 'attachmentIds'",
+            update: "UPDATE existing events. Meticulously scan attachments and context to correct times, locations, or notes. Link relevant documents to existing events if they match, you MUST include its ID in 'attachmentIds'",
+            fill: "Find empty slots in the schedule and suggest activities or necessary travel logistics (transfers, meals). Also scan existing events to refine details if better information is available from context or attachments, don't forget to link relevant documents events, and in that case you MUST include its ID in 'attachmentIds'",
+            dedupe: "Find duplicate events (same time/place/activity) and suggest which to remove."
+        },
+        tasks: {
+            critical: ``,
+            add: "Generate NEW pre-trip tasks. Meticulously identify deadlines and requirements from documents and your knowledge base. Prioritize visa requirements, booking deadlines, or health items. Do not duplicate existing tasks. If an item is created from a document, you MUST include its ID in 'attachmentIds'.",
+            update: "UPDATE existing tasks. Focus on adding specific deadlines, clarifying instructions, or linking relevant attachment IDs to the tasks. If an item is updated based on a document, you MUST include its ID in 'attachmentIds'.",
+            fill: "Hybrid Mode: Identify missing essential preparations (visas, vaccinations, insurance) based on destination. Also refine existing tasks with better data if available. If an item is created/updated from a document, you MUST include its ID in 'attachmentIds'.",
+            dedupe: "Find similar tasks and keep only the most comprehensive version."
+        }
+    };
+
+    const area = sections[targetArea];
+    if (!area) return "";
+
+    const modeDesc = area[aiMode] || area.add;
+
+    // Optimization: Dedupe does not need critical extraction/suggestion logic
+    if (aiMode === 'dedupe') {
+        return `
+MODE: ${aiMode.toUpperCase()}
+INSTRUCTIONS: ${modeDesc}
+`;
+    }
+
+    return `
+${area.critical}
+
+MODE: ${aiMode.toUpperCase()}
+INSTRUCTIONS: ${modeDesc}
+`;
+};
+
+const ATTACHMENT_INSTRUCTIONS = `
+RAW FILE EXTRACTION (HYBRID MODE):
+You have been provided with raw files (PDFs/Images). 
+1.  **Extract Data**: Meticulously find ALL information that is or could be relevant to the trip. This includes but is not limited to:
+    - Exact dates and times (HH:mm).
+    - Locations (addresses, building names).
+    - Costs, taxes, currencies, and payment status (paid/pending).
+    - Confirmation numbers, booking IDs, and other identifiers.
+    - Rules (check-in/out times, cancellation policies, baggage limits).
+    - Amenities or specific services included.
+    - Technical details (e.g., rented car specifications, etc).
+2.  **COMPREHENSIVE Distillation**: For every raw file provided, you MUST provide a DENSE and EXHAUSTIVE summary of ALL extracted facts in 'newDistilledData'. 
+3.  **Language**: The distillation summary MUST be in English.
+4.  **Prioritize Precision**: Use exact values found in the documents. Do not generalize.
+`;
+
+export const getSystemInstructions = (date, tripDetails, hasAttachments, language, targetArea = 'all', aiMode = 'add') => {
+    const travelerContext = tripDetails.travelerProfiles?.length > 0
+        ? tripDetails.travelerProfiles.map(p => `${p.nickname} (Age: ${p.age || 'N/A'}, Sex: ${p.sex})`).join(', ')
+        : `${tripDetails.travelers || 1} traveler(s)`;
+
+    let prompt = BASE_INSTRUCTIONS(
+        date,
+        tripDetails.destination,
+        tripDetails.startDate,
+        tripDetails.endDate,
+        tripDetails.origin,
+        language,
+        travelerContext
+    );
+
+    // Universal JSON/Logic rules (shorter)
+    prompt += `
+GENERAL RULES:
+- Output valid JSON only. NO filler text.
+- Provide a brief \`changeSummary\` in ${language}.
+- Dates MUST be YYYY-MM-DD.
+`;
+
+    if (targetArea === 'all') {
+        const areas = ['packing', 'itinerary', 'tasks'];
+        areas.forEach(area => {
+            const areaPrompt = TASK_SPECIFIC_INSTRUCTIONS(tripDetails, aiMode, area);
+            prompt += areaPrompt;
+        });
+    } else {
+        prompt += TASK_SPECIFIC_INSTRUCTIONS(tripDetails, aiMode, targetArea);
     }
 
     if (hasAttachments) {
-        prompt += `
-        \nRAW FILE EXTRACTION (HYBRID MODE):
-        You have been provided with raw files (PDFs/Images). 
-        1.  **Extract Data**: Meticulously find ALL information that is or could be relevant to the trip. This includes but is not limited to:
-            - Exact dates and times (HH:mm).
-            - Locations (addresses, building names).
-            - Costs, taxes, currencies, and payment status (paid/pending).
-            - Confirmation numbers, booking IDs, and other identifiers.
-            - Rules (check-in/out times, cancellation policies, baggage limits).
-            - Amenities or specific services included.
-            - Technical details (e.g., plane details, rented car specifications, etc).
-            - Any other relevant information.
-        2.  **COMPREHENSIVE Distillation**: For every raw file provided, you MUST provide a DENSE and EXHAUSTIVE summary of ALL extracted facts in 'newDistilledData'. 
-        3.  **Language**: The distillation summary MUST be in English.
-        4.  **Prioritize Precision**: Use exact values found in the documents. Do not generalize.
-        `;
+        prompt += ATTACHMENT_INSTRUCTIONS;
     }
 
     return prompt;
 };
 
-export const MODE_INSTRUCTIONS = {
-    add: "Suggest NEW items. Meticulously use ALL relevant attachments/context to discover every detail. You MUST link document IDs to every item created from them.",
-    update: "UPDATE existing items (also look for missing attachments). Use their 'id'. Return ONLY changed fields. Link ALL relevant attachments to updated items.",
-    fill: "Look for gaps and return NEW items (adds) or UPDATES to existing placeholders. Meticulously use ALL relevant attachments and link their IDs.",
-    dedupe: "Find duplicates. Return 'deletes' list (IDs)."
-};
-
 export const constructUserPrompt = (fullContext, customPrompt, aiMode, targetArea) => {
-    const modeDesc = MODE_INSTRUCTIONS[aiMode] || MODE_INSTRUCTIONS.add;
+    let contextToUse = fullContext;
+
+    // If dedupe mode, parse context and only use the target area
+    if (aiMode === 'dedupe') {
+        try {
+            const parsedContext = JSON.parse(fullContext);
+            // Only keep the target area if it exists in context, otherwise keep full to be safe
+            if (parsedContext[targetArea]) {
+                contextToUse = JSON.stringify({ [targetArea]: parsedContext[targetArea] });
+            }
+        } catch (e) {
+            // If parsing fails (e.g. context is not JSON), fallback to full context
+            console.warn("Could not parse context for dedupe optimization");
+        }
+    }
 
     return `
-        CONTEXT:
-        ${fullContext}
+        ${contextToUse}
 
         USER REQUEST: ${customPrompt || "No special requests."}
 
-        GOAL: ${aiMode.toUpperCase()} mode on ${targetArea.toUpperCase()}.
-        INSTRUCTIONS: ${modeDesc}
-
-        Output valid JSON matching the schema.
+        Output valid JSON matching the schema for ${targetArea.toUpperCase()} in ${aiMode.toUpperCase()} mode.
     `;
 };

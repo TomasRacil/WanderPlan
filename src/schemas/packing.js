@@ -17,6 +17,7 @@ export const getPackingSchema = (aiMode) => {
                             properties: {
                                 item: { type: "STRING" },
                                 quantity: { type: "INTEGER" },
+                                bagId: { type: "STRING", description: "Internal ID of the bag from context (e.g., 'bag-123'). Use ONLY if certain." },
                                 recommendedBagType: { type: "STRING", description: "e.g., 'Carry-on', 'Checked', 'Personal Item'" }
                             },
                             required: ["item"]
@@ -36,7 +37,19 @@ export const getPackingSchema = (aiMode) => {
                 type: "OBJECT",
                 properties: {
                     id: commonProperties.ids,
-                    newItems: { type: "ARRAY", items: { type: "STRING" } },
+                    newItems: {
+                        type: "ARRAY",
+                        items: {
+                            type: "OBJECT",
+                            properties: {
+                                item: { type: "STRING" },
+                                quantity: { type: "INTEGER" },
+                                bagId: { type: "STRING" },
+                                recommendedBagType: { type: "STRING" }
+                            },
+                            required: ["item"]
+                        }
+                    },
                     removeItems: { type: "ARRAY", items: { type: "STRING" } },
                     attachmentIds: commonProperties.attachmentIds
                 },

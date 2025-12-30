@@ -82,7 +82,11 @@ export const packingSlice = createSlice({
                     text = aiItem.item || aiItem.text;
                     quantity = aiItem.quantity || 1;
                     recommendedBagType = aiItem.recommendedBagType || null;
-                    if (recommendedBagType && state.bags) {
+
+                    // Prioritize direct bagId if provided by AI
+                    if (aiItem.bagId) {
+                        bagId = aiItem.bagId;
+                    } else if (recommendedBagType && state.bags) {
                         // Try to find matching bag by name (fuzzy) or type
                         const targetBag = state.bags.find(b =>
                             b.name.toLowerCase().includes(recommendedBagType.toLowerCase()) ||
@@ -139,10 +143,18 @@ export const packingSlice = createSlice({
                     if (upd.newItems) {
                         upd.newItems.forEach(ni => {
                             const { text, quantity, bagId, recommendedBagType } = processAiItem(ni);
-                            if (!cat.items.find(i => {
+                            const existingItem = cat.items.find(i => {
                                 const iText = typeof i.text === 'string' ? i.text : (i.text?.item || i.text?.text || '');
                                 return iText.toLowerCase() === text.toLowerCase();
-                            })) {
+                            });
+
+                            if (existingItem) {
+                                // Update existing item properties
+                                existingItem.quantity = quantity;
+                                existingItem.bagId = bagId;
+                                existingItem.recommendedBagType = recommendedBagType;
+                            } else {
+                                // Add as new item
                                 cat.items.push({
                                     id: generateId('ai-pack'),
                                     text,
@@ -171,10 +183,25 @@ export const packingSlice = createSlice({
 
         addBag: (state, action) => {
             if (!state.bags) state.bags = [];
-            state.bags.push({
-                ...action.payload,
-                id: action.payload.id || generateId('bag')
-            });
+            const { quantity, ...bagData } = action.payload;
+            const count = parseInt(quantity) || 1;
+
+            if (count > 1) {
+                for (let i = 1; i <= count; i++) {
+                    state.bags.push({
+                        ...bagData,
+                        id: generateId('bag'),
+                        name: `${bagData.name} ${i}`,
+                        travelerId: bagData.travelerId || null
+                    });
+                }
+            } else {
+                state.bags.push({
+                    ...bagData,
+                    id: bagData.id || generateId('bag'),
+                    travelerId: bagData.travelerId || null
+                });
+            }
         },
         updateBag: (state, action) => {
             const { id, ...updates } = action.payload;
@@ -182,6 +209,12 @@ export const packingSlice = createSlice({
             if (index > -1) {
                 state.bags[index] = { ...state.bags[index], ...updates };
             }
+        },
+        clearTravelerFromBags: (state, action) => {
+            const travelerId = action.payload;
+            state.bags.forEach(bag => {
+                if (bag.travelerId === travelerId) bag.travelerId = null;
+            });
         },
         deleteBag: (state, action) => {
             const id = action.payload;
@@ -224,7 +257,7 @@ export const {
     deletePackingCategory,
     removeAttachmentReference,
     applyPackingChanges,
-    addBag, updateBag, deleteBag, updatePackingItem
+    addBag, updateBag, deleteBag, updatePackingItem, clearTravelerFromBags
 } = packingSlice.actions;
 
 export default packingSlice.reducer;

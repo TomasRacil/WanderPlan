@@ -45,22 +45,101 @@ const ensurePackingIds = (list) => {
     }));
 };
 
+const expandBags = (bags) => {
+    if (!bags) return { expanded: [], idMap: {} };
+    const expanded = [];
+    const idMap = {}; // oldId -> newId
+
+    bags.forEach(bag => {
+        const oldId = String(bag.id);
+        const qty = parseInt(bag.quantity) || 1;
+
+        if (qty > 1) {
+            for (let i = 1; i <= qty; i++) {
+                const newId = generateId('bag');
+                if (i === 1) idMap[oldId] = newId; // Map old ID to the first instance
+
+                expanded.push({
+                    ...bag,
+                    id: newId,
+                    name: `${bag.name} ${i}`,
+                    quantity: undefined
+                });
+            }
+        } else {
+            const newId = bag.id || generateId('bag');
+            idMap[oldId] = String(newId);
+            expanded.push({
+                ...bag,
+                id: newId,
+                quantity: undefined
+            });
+        }
+    });
+    return { expanded, idMap };
+};
+
 export const migrateLegacyState = (legacyState) => {
     if (!legacyState) return null;
 
-    // Check if checks are needed. If it has 'tripDetails' at root, it's likely the legacy object.
-    // If it has 'itinerary' as an object with 'items', it might be partially migrated or new.
+    // Check if checks are needed.
+    // If it has 'tripDetails' at root, it's likely the legacy object.
+
     // We assume the input is the object directly from IDB 'wanderplan_current_trip'.
 
     // CRITICAL: Check if already migrated
     if (legacyState.trip && legacyState.itinerary && legacyState.resources && legacyState.packing && legacyState.ui) {
-        // Even if already migrated, ensure documents have 'size'
+        // Ensure traveler profiles exist
+        if (!legacyState.trip.tripDetails.travelerProfiles || legacyState.trip.tripDetails.travelerProfiles.length === 0) {
+            const count = legacyState.trip.tripDetails.travelers || 1;
+            const profiles = [];
+            for (let i = 1; i <= count; i++) {
+                profiles.push({
+                    id: generateId('trv'),
+                    nickname: i === 1 ? 'Me' : `Traveler ${i}`,
+                    age: '',
+                    sex: 'other'
+                });
+            }
+            legacyState.trip.tripDetails.travelerProfiles = profiles;
+        }
+
+        // Migration patch: Check if bags still have quantity (unexpanded)
+        const currentBags = legacyState.packing.bags || [];
+        const hasUnexpanded = currentBags.some(b => parseInt(b.quantity) > 1);
+
+        if (hasUnexpanded) {
+            const { expanded, idMap } = expandBags(currentBags);
+            legacyState.packing.bags = expanded;
+
+            // Map item bagIds
+            legacyState.packing.list.forEach(cat => {
+                cat.items.forEach(item => {
+                    if (item.bagId && idMap[String(item.bagId)]) {
+                        item.bagId = idMap[String(item.bagId)];
+                    }
+                });
+            });
+        }
+
+        // Integrity Cleanup: Remove orphan bagIds
+        const validBagIds = new Set((legacyState.packing?.bags || []).map(b => String(b.id)));
+        if (legacyState.packing?.list) {
+            legacyState.packing.list.forEach(cat => {
+                cat.items.forEach(item => {
+                    if (item.bagId && !validBagIds.has(String(item.bagId))) {
+                        console.log(`[Migration] Clearing orphan bagId ${item.bagId} from item ${item.text}`);
+                        item.bagId = null;
+                    }
+                });
+            });
+        }
+
+        // Ensure documents have 'size'
         const docs = legacyState.resources.documents || {};
-        let updated = false;
         Object.values(docs).forEach(doc => {
             if (doc.size === undefined && doc.data) {
                 doc.size = estimateBase64Size(doc.data);
-                updated = true;
             }
         });
         return legacyState;
@@ -73,6 +152,20 @@ export const migrateLegacyState = (legacyState) => {
         showSettings: legacyState.showSettings || false,
         isInitialized: true
     };
+
+    // 1.5 Traveler Profiles
+    const travelerCount = legacyState.tripDetails?.travelers || 1;
+    const travelerProfiles = legacyState.tripDetails?.travelerProfiles || [];
+    if (travelerProfiles.length === 0) {
+        for (let i = 1; i <= travelerCount; i++) {
+            travelerProfiles.push({
+                id: generateId('trv'),
+                nickname: i === 1 ? 'Me' : `Traveler ${i}`,
+                age: '',
+                sex: 'other'
+            });
+        }
+    }
 
     // 2. Resources (Documents & Tasks)
     const documents = legacyState.documents || {};
@@ -115,11 +208,32 @@ export const migrateLegacyState = (legacyState) => {
     });
 
     // Bags
-    const bags = ensureIds(legacyState.bags || [], 'bag');
+    const rawBags = legacyState.bags || [];
+    const { expanded: bags, idMap: bagIdMap } = expandBags(rawBags);
 
-    // 3. Trip Core
+    // Update item references in packing list
+    packing.forEach(cat => {
+        cat.items.forEach(item => {
+            if (item.bagId && bagIdMap[String(item.bagId)]) {
+                item.bagId = bagIdMap[String(item.bagId)];
+            }
+        });
+    });
+
+    // Integrity Cleanup: Remove orphan bagIds
+    const finalBagIds = new Set(bags.map(b => String(b.id)));
+    packing.forEach(cat => {
+        cat.items.forEach(item => {
+            if (item.bagId && !finalBagIds.has(String(item.bagId))) {
+                item.bagId = null;
+            }
+        });
+    });
     const trip = {
-        tripDetails: legacyState.tripDetails || {},
+        tripDetails: {
+            ...legacyState.tripDetails,
+            travelerProfiles
+        },
         expenses: legacyState.expenses || [],
         exchangeRates: legacyState.exchangeRates || {},
         apiKey: legacyState.apiKey || '',
